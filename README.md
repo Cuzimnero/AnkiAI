@@ -18,3 +18,6 @@ AnkiAI is a powerful tool designed to streamline your learning workflow by lever
 1. Clone the repository:
    ```bash
    git clone [https://github.com/Cuzimnero/AnkiAI.git](https://github.com/Cuzimnero/AnkiAI.git)
+2. Install the required dependencies
+   ```bash
+   pip install -r requirements.txt
