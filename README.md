@@ -1,6 +1,6 @@
 # AnkiAI 🧠🤖
 
-AnkiAI is a powerful tool designed to streamline your learning workflow by leveraging DeepSeek AI to generate high-quality flashcards for Anki.
+AnkiAI is a powerful tool designed to streamline your learning workflow by leveraging DeepSeek AI to generate flashcards for Anki.
 
 ## ✨ Features
 * **DeepSeek Integration:** Uses DeepSeek's powerful LLM to extract and format knowledge into flashcards.
