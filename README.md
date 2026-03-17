@@ -1,4 +1,4 @@
-# AnkiAI 🧠🤖
+# AnkiAI 
 
 AnkiAI is a powerful tool designed to streamline your learning workflow by leveraging DeepSeek AI to generate flashcards for Anki.
 
