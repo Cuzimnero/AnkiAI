@@ -36,16 +36,12 @@ if str(base_path) not in sys.path:
 
 # Application interface
 class App(ctk.CTk, TkinterDnD.DnDWrapper):
-    # Initialize application
     def __init__(self):
+        """Initializes the main application, window settings, and authentication state."""
         self.generator = AnkiGen()
         self.deleted_pages = []
         self.icon_path=base_path/"src"/"ui"/"logo.ico"
         super().__init__()
-        try:
-            self.TkdndVersion = TkinterDnD._pytkinterdnd2.TkinterDnD_Init(self)
-        except Exception:
-            pass
         self.iconbitmap(str(self.icon_path))
 
         self.title("Anki Gen")
@@ -53,13 +49,16 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         ctk.set_appearance_mode("dark")
         self.key_file=base_path / ".env"
         self.selected_file = None
+
+        #Checking for api key
         if self.key_file.exists():
             self.api_key = self.key_file.read_text().strip()
             self.show_main_menu()
         else:
             self.ask_for_key()
-    # Opens API Key enter Interface
+
     def ask_for_key(self):
+        """Asking for and safe api key dialog"""
         self.key_frame = ctk.CTkFrame(self)
         self.key_frame.pack(expand=True, fill="both")
 
@@ -72,15 +71,16 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.btn_login = ctk.CTkButton(self.key_frame, text="Login", command=self.login_success)
         self.btn_login.pack(pady=20)
 
-    # Safes API key when entered
     def login_success(self):
+        """Safes api key when entered to env file"""
         key = self.key_entry.get()
         input = f"DEEPSEEK_API_KEY={key}"
         self.key_file.write_text(input,encoding="utf-8")
         self.key_frame.destroy()
         self.show_main_menu()
-    # Opens Main ui
+
     def show_main_menu(self):
+        """Shows primary landing page """
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.pack(expand=True, fill="both")
 
@@ -93,8 +93,9 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                                       height=60, width=300, corner_radius=10,
                                       command=lambda : self.select_file(True))
         self.file_btn.pack(pady=20)
-# Starts file selection dialog
+
     def select_file(self,kind:bool):
+        """ Starts file selection dialog. In context to two different cases 1. called  by the main page and 2. called by the details window"""
         if not kind:
             path = filedialog.askopenfilename(filetypes=[("PDF-files", "*.pdf")], parent=self.details_window)
             self.reload_excludes_textbox()
@@ -114,6 +115,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             self.file_button.configure(text=file_name)
 # Starts details_window_interface
     def open_details_window(self):
+        """Starts config page when a file is selected """
         self.details_window = ctk.CTkToplevel(self)
         self.details_window.title("Config")
         self.details_window.geometry("400x500")
@@ -127,6 +129,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         file_label_frame.pack(pady=(5, 0))
         file_label_frame.pack_propagate(False)
 
+        #Creates file frame giving the opportunity to see and  change the selected file
         ctk.CTkLabel(file_label_frame, text="File", font=("Arial", 16, "bold"),width=20,height=25).pack(pady=5)
         file_name = os.path.basename(self.selected_file)[0:20]
         if len(os.path.basename(self.selected_file) )> 20:
@@ -136,6 +139,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.reload_file_button=ctk.CTkButton(file_frame, text="↻",width=40,height=40,corner_radius=20,fg_color="green",hover_color="darkgreen",command=self.execute_reload,border_color="#004d00",border_width=5)
         self.reload_file_button.pack(side="right",padx=(4,15))
 
+        #Creates exclude frame which opens the exclude page ui and shows excluded pages
         exclude_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=45)
         exclude_frame.pack()
         self.exclude_textbox = ctk.CTkTextbox(exclude_frame, width = 200, height = 40,state="disabled")
@@ -144,6 +148,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.exclude_button=(ctk.CTkButton(exclude_frame,text="Exclude pages",corner_radius=32,command=self.open_exclude_window,width=25))
         self.exclude_button.pack(pady=5,side="left",padx=10)
 
+        #Creates context frame giving the opportunity to select the deck name and giving context for card generation
         context_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=120)
         context_frame.pack_propagate(False)
         context_frame.pack(pady=5)
@@ -154,6 +159,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.context_text = ctk.CTkTextbox(context_frame, width=380, height=50)
         self.context_text.pack(pady=10, padx=20)
 
+        #Creates language frame to choose the card language
         language_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=50)
         language_frame.pack_propagate(False)
         language_frame.pack(pady=5)
@@ -163,12 +169,14 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
         self.label=ctk.CTkLabel(self.details_window,text="generate cards",text_color="green")
 
+        #Finish button to start the card generation process
         self.start_btn = ctk.CTkButton(self.details_window, text="generate cards",
                                        fg_color="green", hover_color="darkgreen",
                                        command=self.start_generation,border_color="#004d00",border_width=5,corner_radius=40,width=200,height=40)
         self.start_btn.pack(pady=20)
         
     def open_exclude_window(self):
+        """Starts page to exclude pdf pages from the card generation."""
         self.exclude_window = ctk.CTkToplevel(self.details_window)
         self.exclude_window.title("Exclude pages")
         self.exclude_window.focus_force()
@@ -192,6 +200,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
         self.finish_button = ctk.CTkButton(self.exclude_window, anchor="s", text="Finish", corner_radius=32, command=self.exclude_window_finish,border_color="#3B8ED0",fg_color="#2B2B2B",hover_color="#3B8ED0",text_color="white",font=("Segoe UI", 13, "bold"),width=400,height=300)
         
+        #initalite queue for pdf pages
         self.image_queue = queue.Queue()
         self.current_page_index = 0
         self.columns = 2
@@ -200,11 +209,14 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.load_next_page()
 
     def _image_generation_thread(self):
+        """Adds pdf pages to queue for loading in the window"""
         for image in self.generator.handler.convert_to_pic():
             self.image_queue.put(image)
         self.image_queue.put(None)
 
     def load_next_page(self):
+        """handles page loading for exclude ui loads 20 pages in one iteration"""
+
         if not self.exclude_window.winfo_exists():
             return
 
@@ -216,7 +228,8 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 image = self.image_queue.get_nowait()
             except queue.Empty:
                 break
-                
+
+             #function stops at the last image
             if image is None:
                 if self.loading_label.winfo_exists():
                     self.loading_label.destroy()
@@ -246,10 +259,11 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
         if images_loaded:
             self.exclude_window.update_idletasks()
-            
-        self.exclude_window.after(0, self.load_next_page)
+            #recursive call for next iteration
+        self.exclude_window.after(10, self.load_next_page)
 
     def exclude_window_finish(self):
+            """safes deleted pages for removing and closes  exclude window"""
             self.pages_to_delete_sorted = [page_num for page_num, var in self.page_states.items() if var.get()]
             for page_num in self.pages_to_delete_sorted:
                 if page_num not in self.deleted_pages:
@@ -264,6 +278,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             self.exclude_window.destroy()
 
     def execute_reload(self):
+        """reloads document and exclude textbox"""
         self.generator.handler.doc_reload()
         self.reload_excludes_textbox()
 
@@ -274,16 +289,18 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.exclude_textbox.configure(state="disabled")
 
     def start_generation(self):
+        """updates detail page for generation of cards, initialize generation"""
         self.start_btn.configure(state="disabled",text="Generating cards...")
         thread=threading.Thread(target=self.run_gen)
-        self.bar=ctk.CTkProgressBar(self.details_window,orientation="horizontal",progress_color="lightblue",determinate_speed=0.5,border_color="blue",fg_color="#3B8ED0")
-        self.bar.pack(pady=15)
+        self.bar=ctk.CTkProgressBar(self.details_window,orientation="horizontal",progress_color="#5353ec",determinate_speed=0.5,border_color="blue",fg_color="#3B8ED0")
+        self.bar.pack(pady=10)
         self.bar.start()
         self.label = ctk.CTkLabel(self.details_window, text="generating cards ...", text_color="green")
         self.label.pack(pady=10)
         thread.start()
 
     def run_gen(self):
+        """generates cards"""
         for page in self.deleted_pages:
             self.generator.handler.delete_page(page - 1)
         context=self.context_text.get("1.0","end-1c").strip()
@@ -296,6 +313,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.after(0,self.finish)
 
     def finish(self):
+        """finishes generating cards"""
         if(self.details_window.winfo_exists()):
             self.details_window.destroy()
         messagebox.showinfo("AnkiGen", "Generation successful!")

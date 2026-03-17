@@ -64,6 +64,7 @@ class AnkiGen:
 
 
     def rework(self, cards: list[dict],context:str):
+        """reworks created anki cards deletes unnecessary and bad cards"""
         print("rework started")
         n=math.ceil(len(cards)/150)
         rework_cards=[]
@@ -84,6 +85,7 @@ class AnkiGen:
 
 
     def createCards(self,context:str,language:str):
+        """running different threads for multiple tasks, AI api calls, creating cards"""
         cards=[]
         all_cards=[]
         with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:

@@ -9,6 +9,7 @@ import genanki
 class anki_handler:
 
     def __init__(self,deck_name:str):
+        """initialization of cards style"""
         self.deckname=deck_name
         style = """
             .card {
@@ -76,6 +77,7 @@ class anki_handler:
         )
         self.deck=genanki.Deck(id_d,deck_name)
     def add_fields(self,cards: list[dict]):
+        """adding cards to deck"""
         for card in cards:
             node=genanki.Note(model=self.model,fields=[html.escape(card["front"]),html.escape(card["back"]),html.escape(card["topic"])])
             self.deck.add_note(node)
