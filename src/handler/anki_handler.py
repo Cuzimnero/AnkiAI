@@ -76,13 +76,32 @@ class anki_handler:
             css=style
         )
         self.deck=genanki.Deck(id_d,deck_name)
+
+    def clean_field(self,data):
+        if isinstance(data, list):
+            return ", ".join(map(str, data))
+        return str(data)
+
     def add_fields(self,cards: list[dict]):
         """adding cards to deck"""
         for card in cards:
-            node=genanki.Note(model=self.model,fields=[html.escape(card["front"]),html.escape(card["back"]),html.escape(card["topic"])])
+            front= card.get("front") if card.get("front") is not None  else "AI Error"
+            topic=card.get("topic") if card.get("topic") is not None  else "AI Error"
+            back=card.get("back") if card.get("back") is not None  else "AI Error"
+            node = genanki.Note(
+            model=self.model,
+            fields=[
+                html.escape(self.clean_field(front)),
+                html.escape(self.clean_field(back)),
+                html.escape(self.clean_field(topic))
+            ]
+            )
             self.deck.add_note(node)
+
 
     def safe_tofile(self,path:Path):
         genanki.Package(self.deck).write_to_file(path/f"{self.deckname.strip()}.apkg")
         os.startfile(path/f"{self.deckname.strip()}.apkg")
+
+
 

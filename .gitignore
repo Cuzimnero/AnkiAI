@@ -1,5 +1,6 @@
 .env
 .venv/
 .idea/
-h -u origin main
 output/
+__pycache__/
+*.pyc

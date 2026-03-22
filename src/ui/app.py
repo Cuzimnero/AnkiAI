@@ -7,16 +7,20 @@ import openai
 import fitz
 import customtkinter as ctk
 from PIL.ImageOps import expand
-from customtkinter import CTkFrame
+from customtkinter import CTkFrame, CTkLabel
+from dotenv import load_dotenv
+from openai import OpenAI, APIError
 from tkinterdnd2 import DND_FILES, TkinterDnD
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, Text
 from ai.anki_gen import AnkiGen
 from handler.anki_handler import anki_handler
 import genanki
 import ctypes
 import threading
 import queue
+import ollama
 from handler.pdf_handler import pdf_handler
+
 
 # Set a unique AppUserModelID to ensure the app has its own taskbar icon on Windows
 try:
@@ -38,31 +42,53 @@ if str(base_path) not in sys.path:
 class App(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         """Initializes the main application, window settings, and authentication state."""
-        self.generator = AnkiGen()
+        self.localMod=None
         self.deleted_pages = []
         self.icon_path=base_path/"src"/"ui"/"logo.ico"
         super().__init__()
         self.iconbitmap(str(self.icon_path))
+
 
         self.title("Anki Gen")
         self.geometry("600x500")
         ctk.set_appearance_mode("dark")
         self.key_file=base_path / ".env"
         self.selected_file = None
+        self.generator=AnkiGen(1,"")
 
-        #Checking for api key
+        #Checking for api key, loading safed key and data
         if self.key_file.exists():
-            self.api_key = self.key_file.read_text().strip()
+            load_dotenv()
+            self.chooseMod_state = os.getenv("CHOOSE_MOD_STATE", "normal")
+            self.key_valid = os.getenv("KEY_VALID", "False")=="True"
+            self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
+            self.text_for_add_key=f"Your API Key {self.api_key}"
             self.show_main_menu()
         else:
-            self.ask_for_key()
+            self.ask_for_key("ENTER THE KEY")
 
-    def ask_for_key(self):
+    def verify_deepseek_key(self):
+        client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+        try:
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": "This is a test call"},
+                    {"role": "user", "content": "Hello"},
+                ],
+                stream=False
+                ,max_tokens=1
+            )
+            return True
+        except APIError:
+            return False
+
+    def ask_for_key(self,dialog_message:str):
         """Asking for and safe api key dialog"""
         self.key_frame = ctk.CTkFrame(self)
         self.key_frame.pack(expand=True, fill="both")
 
-        self.label = ctk.CTkLabel(self.key_frame, text="ENTER THE KEY", font=("System", 24, "bold"))
+        self.label = ctk.CTkLabel(self.key_frame, text=dialog_message, font=("System", 24, "bold"))
         self.label.pack(pady=30)
 
         self.key_entry = ctk.CTkEntry(self.key_frame, placeholder_text="Your API-Key...", width=300, show="*")
@@ -71,28 +97,104 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.btn_login = ctk.CTkButton(self.key_frame, text="Login", command=self.login_success)
         self.btn_login.pack(pady=20)
 
+        self.escape_button = ctk.CTkButton(self.key_frame, font=("System", 10, "bold"), text="I dont have a key",
+                                           command=self.has_no_api_key)
+        self.escape_button.pack(pady=10)
+
     def login_success(self):
-        """Safes api key when entered to env file"""
+        """Safes api key in env file"""
+        self.chooseMod_state = "normal"
+        self.key_valid = True
         key = self.key_entry.get()
-        input = f"DEEPSEEK_API_KEY={key}"
+
+        self.api_key = key
+        if not self.verify_deepseek_key():
+            messagebox.showerror("ERROR", "Your API Key is invalid")
+            self.key_frame.destroy()
+            self.ask_for_key("ENTER THE API KEY")
+            return
+
+        input = f"DEEPSEEK_API_KEY={key}\nCHOOSE_MOD_STATE={self.chooseMod_state}\nKEY_VALID={self.key_valid} "
+        self.text_for_add_key=f"Your API Key {self.api_key}"
+
+
         self.key_file.write_text(input,encoding="utf-8")
         self.key_frame.destroy()
         self.show_main_menu()
+
+    def has_no_api_key(self):
+        self.chooseMod_state="disabled"
+        self.selectModel(2)
+        self.text_for_add_key="Add DeepSeek Key"
+        self.key_valid=False
+        self.key_frame.destroy()
+        self.show_main_menu()
+
 
     def show_main_menu(self):
         """Shows primary landing page """
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.pack(expand=True, fill="both")
 
+        self.addKey_button=ctk.CTkButton(self.main_frame, text=self.text_for_add_key,fg_color="transparent",command=self.addKey,text_color="darkgreen")
+        self.addKey_button.pack(pady=20,padx=20,anchor="se",side="bottom")
+
         self.title_label = ctk.CTkLabel(self.main_frame, text="ANKI GEN",
                                         font=ctk.CTkFont(family="Courier", size=50, weight="bold"),
                                         text_color="#3498db")
         self.title_label.pack(pady=40)
 
+        self.modelFrame = ctk.CTkFrame(self.main_frame,border_color="#4a4a4a",border_width=4,width=300,height=180)
+        self.modelFrame.pack_propagate(False)
+        self.modelFrame.pack(pady=10)
+        self.Modelabel=CTkLabel(self.modelFrame, text="Select Model",)
+        self.Modelabel.pack(pady=10)
+        self.chooseMod=ctk.CTkOptionMenu(self.modelFrame,values=["DeepSeek","Local Model (Ollama)"],command=self.selectModel,state=self.chooseMod_state)
+        self.chooseMod.set("Local Model (Ollama)")
+        self.chooseMod.pack(pady=10)
+
         self.file_btn = ctk.CTkButton(self.main_frame, text="Choose File",
                                       height=60, width=300, corner_radius=10,
                                       command=lambda : self.select_file(True))
         self.file_btn.pack(pady=20)
+
+        if not self.key_valid:
+            self.selectModel("Local Model (Ollama)")
+
+    def addKey(self):
+        if not self.key_valid:
+            self.main_frame.destroy()
+            self.ask_for_key("ENTER THE KEY")
+        else:
+            self.main_frame.destroy()
+            self.ask_for_key("ENTER THE NEW KEY")
+
+    def selectModel(self,choice):
+        """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
+        values={"DeepSeek": 1,"Local Model (Ollama)": 2}
+        model=values.get(choice)
+
+        if model==2:
+            try:
+                response=ollama.list()
+                installed_models = [m.model for m in response.models]
+                self.localMod = ctk.CTkOptionMenu(self.modelFrame, values=installed_models,command=self.select_local_model)
+                self.localMod.pack(pady=20)
+                self.generator = AnkiGen(model,self.localMod.get())
+            except Exception as e:
+                messagebox.showerror("Error", "No ollama found")
+        else:
+            self.generator = AnkiGen(model,"")
+            if self.localMod is not None:
+                try:
+                    self.localMod.destroy()
+                    self.localMod = None
+                except Exception:
+                    pass
+
+    def select_local_model(self,choice):
+        self.generator.set_model(choice)
+
 
     def select_file(self,kind:bool):
         """ Starts file selection dialog. In context to two different cases 1. called  by the main page and 2. called by the details window"""
@@ -113,7 +215,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             if len(os.path.basename(self.selected_file)) > 20:
                 file_name = file_name + "..."
             self.file_button.configure(text=file_name)
-# Starts details_window_interface
+
     def open_details_window(self):
         """Starts config page when a file is selected """
         self.details_window = ctk.CTkToplevel(self)
@@ -305,6 +407,10 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             self.generator.handler.delete_page(page - 1)
         context=self.context_text.get("1.0","end-1c").strip()
         cards= self.generator.createCards(context,self.lang_switch.get())
+        if not cards:
+            messagebox.showerror("Error", "No cards generated.")
+            self.details_window.after(10, self.details_window.destroy)
+            return
         handler=anki_handler(context)
         handler.add_fields(cards)
         output_path=base_path/"output"

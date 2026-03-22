@@ -4,18 +4,30 @@ import math
 import os
 import pathlib
 from pathlib import Path
+
+import ollama
 from dotenv import load_dotenv
 from openai import OpenAI
 from handler.pdf_handler import pdf_handler
 
 
 class AnkiGen:
-    def __init__(self):
+    def __init__(self, model_type:int, model:str):
+        self.model=model
+        self.type=model_type
         load_dotenv()
+        if self.type==1:
+            self.workers=30
+            self.rework_size=150
+        else:
+            self.workers=3
+            self.rework_size=50
 
     def set_pdf_handler(self,path:pathlib.Path):
         self.handler = pdf_handler(path)
 
+    def set_model(self,model:str):
+        self.model = model
 
     def rework_part(self,cards: list[dict],context:str):
         system_prompt = f"""
@@ -39,39 +51,20 @@ class AnkiGen:
                 INPUT_CARDS:
                 {json.dumps(cards)}
                 """
+        return self.run_prompt(system_prompt,user_prompt,"Rework error")
 
-        client = OpenAI(
-            api_key=os.environ.get('DEEPSEEK_API_KEY'),
-            base_url="https://api.deepseek.com"
-        )
 
-        try:
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                stream=False,
-                response_format={'type': 'json_object'}
-            )
-            data = json.loads(response.choices[0].message.content)
-            refined_cards = data.get("cards", [])
-            return refined_cards
-        except Exception as e:
-            print(f"Fehler beim Rework: {e}")
-            return []
 
 
     def rework(self, cards: list[dict],context:str):
         """reworks created anki cards deletes unnecessary and bad cards"""
         print("rework started")
-        n=math.ceil(len(cards)/150)
+        n=math.ceil(len(cards)/self.rework_size)
         rework_cards=[]
         pending_tasks=[]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
             for i in range(0,n):
-                task=executor.submit(self.rework_part,cards[i*150:(i+1)*150],context)
+                task=executor.submit(self.rework_part,cards[i*self.rework_size:(i+1)*self.rework_size],context)
                 pending_tasks.append(task)
             for future in concurrent.futures.as_completed(pending_tasks):
                 try:
@@ -88,10 +81,11 @@ class AnkiGen:
         """running different threads for multiple tasks, AI api calls, creating cards"""
         cards=[]
         all_cards=[]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
             for i in range(self.handler.pages):
                 page=self.handler.get_pdf_page()
-                page_cards=executor.submit(AnkiGen._createCard_part,page,context,language)
+                page_cards=executor.submit(self._createCard_part,page,context,language)
                 cards.append(page_cards)
             for future in concurrent.futures.as_completed(cards):
                 try:
@@ -102,13 +96,23 @@ class AnkiGen:
         final_cards=self.rework(all_cards,context)
         return final_cards
 
-    @staticmethod
-    def _createCard_part(input:str,context:str,language:str):
+
+    def _createCard_part(self,input:str,context:str,language:str):
         system_prompt = """
         You are a professional Anki card creator. 
         Analyze the provided text and extract the core concepts into flashcards.
         Output MUST be a valid JSON object containing a list called 'cards'.
         Each card must have 'front' and 'back' fields.
+        Example:
+                {
+          "cards": [
+            {
+              "front": "The question",
+              "back": "The answer",
+              "topic": "Brief topic"
+            }
+          ]
+        }
         Keep the answers concise and focused on one concept per card. Also add a field with 'topic' this should store 
         the core topic which the card is about only 1-4 words.
         """
@@ -122,30 +126,52 @@ class AnkiGen:
         3. SKIP meta-information: No cards about "Lecture 1", "Introduction", or "Thank you for your attention" slides.
         4. Create cards EXCLUSIVELY for concepts, definitions, and theories that directly belong to the context mentioned above ({context}). Make sure that every Important lecture is captured.
         5. COMPLETENESS: Ensure that every technical term mentioned in the input cards is still represented in the final output.
+        6. Q&A STYLE: The 'front' must be a specific question. The 'back' must be the direct answer.
         ---
         {input}
         
         ---
         """
-        client = OpenAI(
-            api_key=os.environ.get('DEEPSEEK_API_KEY'),
-            base_url="https://api.deepseek.com"
-        )
+        return self.run_prompt(system_prompt,user_prompt,"generation error")
 
-        try:
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                stream=False,
-                response_format={'type': 'json_object'}
+    def run_prompt(self,system_prompt:str,user_prompt:str,error_message:str):
+        if self.type==1:
+            client = OpenAI(
+                api_key=os.environ.get('DEEPSEEK_API_KEY'),
+                base_url="https://api.deepseek.com"
             )
 
-            data=json.loads(response.choices[0].message.content)
-            return  data.get("cards",[])
+            try:
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    stream=False,
+                    response_format={'type': 'json_object'}
+                )
 
-        except Exception as e:
-            print(f"Fehler beim Testen: {e}")
-            return []
+                data = json.loads(response.choices[0].message.content)
+                return data.get("cards", [])
+
+            except Exception as e:
+                print(f"{error_message} {e}")
+                return []
+
+        elif self.type==2:
+             try:
+                response = ollama.chat(model=self.model,format='json', messages=[{"role": "system", "content": system_prompt},
+                                                                   {"role": "user", "content": user_prompt}])
+                data = json.loads(response.message.content)
+                refined_cards = data.get("cards", [])
+                return refined_cards
+             except Exception as e:
+                print(f"{error_message} {e}")
+                return []
+
+
+
+
+
+
