@@ -1,0 +1,17 @@
+# IDEs
+.env
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build
+build/
+dist/
+*.spec
+output/
