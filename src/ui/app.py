@@ -1,26 +1,23 @@
+import ctypes
+import datetime
+import logging
 import os
+import queue
 import sys
+import threading
+from datetime import datetime
 from pathlib import Path
-import dotenv
-import image
-import openai
-import fitz
+from tkinter import filedialog, messagebox
+
 import customtkinter as ctk
-from PIL.ImageOps import expand
-from customtkinter import CTkFrame, CTkLabel
+import ollama
+from customtkinter import CTkLabel
 from dotenv import load_dotenv
 from openai import OpenAI, APIError
-from tkinterdnd2 import DND_FILES, TkinterDnD
-from tkinter import filedialog, messagebox, Text
+from tkinterdnd2 import TkinterDnD
+
 from ai.anki_gen import AnkiGen
 from handler.anki_handler import anki_handler
-import genanki
-import ctypes
-import threading
-import queue
-import ollama
-from handler.pdf_handler import pdf_handler
-
 
 # Set a unique AppUserModelID to ensure the app has its own taskbar icon on Windows
 try:
@@ -38,31 +35,46 @@ else:
 if str(base_path) not in sys.path:
     sys.path.insert(0, str(base_path))
 
+
 # Application interface
 class App(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         """Initializes the main application, window settings, and authentication state."""
-        self.localMod=None
+        log_filename = datetime.now().ctime().replace(":", r"-") + ".log"
+        logging_path = base_path / "logs"
+        logging_path.mkdir(exist_ok=True, parents=True)
+        log_file = logging_path / log_filename
+        logging.basicConfig(
+            filename=str(log_file),
+            filemode='a',
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            level=logging.INFO,
+            force=True
+        )
+
+        self.localMod = None
         self.deleted_pages = []
-        self.icon_path=base_path/"src"/"ui"/"logo.ico"
+        self.icon_path = base_path / "src" / "ui" / "logo.ico"
         super().__init__()
         self.iconbitmap(str(self.icon_path))
-
 
         self.title("Anki Gen")
         self.geometry("600x500")
         ctk.set_appearance_mode("dark")
-        self.key_file=base_path / ".env"
+        self.key_file = base_path / ".env"
         self.selected_file = None
-        self.generator=AnkiGen(1,"")
+        self.generator = AnkiGen(1, "")
 
-        #Checking for api key, loading safed key and data
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Logger started")
+
+        # Checking for api key, loading safed key and data
         if self.key_file.exists():
             load_dotenv()
             self.chooseMod_state = os.getenv("CHOOSE_MOD_STATE", "normal")
-            self.key_valid = os.getenv("KEY_VALID", "False")=="True"
+            self.key_valid = os.getenv("KEY_VALID", "False") == "True"
             self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
-            self.text_for_add_key=f"Your API Key {self.api_key}"
+            self.text_for_add_key = f"Your API Key {self.api_key}"
             self.show_main_menu()
         else:
             self.ask_for_key("ENTER THE KEY")
@@ -77,13 +89,13 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                     {"role": "user", "content": "Hello"},
                 ],
                 stream=False
-                ,max_tokens=1
+                , max_tokens=1
             )
             return True
         except APIError:
             return False
 
-    def ask_for_key(self,dialog_message:str):
+    def ask_for_key(self, dialog_message: str):
         """Asking for and safe api key dialog"""
         self.key_frame = ctk.CTkFrame(self)
         self.key_frame.pack(expand=True, fill="both")
@@ -115,46 +127,46 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             return
 
         input = f"DEEPSEEK_API_KEY={key}\nCHOOSE_MOD_STATE={self.chooseMod_state}\nKEY_VALID={self.key_valid} "
-        self.text_for_add_key=f"Your API Key {self.api_key}"
+        self.text_for_add_key = f"Your API Key {self.api_key}"
 
-
-        self.key_file.write_text(input,encoding="utf-8")
+        self.key_file.write_text(input, encoding="utf-8")
         self.key_frame.destroy()
         self.show_main_menu()
 
     def has_no_api_key(self):
-        self.chooseMod_state="disabled"
+        self.chooseMod_state = "disabled"
         self.selectModel(2)
-        self.text_for_add_key="Add DeepSeek Key"
-        self.key_valid=False
+        self.text_for_add_key = "Add DeepSeek Key"
+        self.key_valid = False
         self.key_frame.destroy()
         self.show_main_menu()
-
 
     def show_main_menu(self):
         """Shows primary landing page """
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.pack(expand=True, fill="both")
 
-        self.addKey_button=ctk.CTkButton(self.main_frame, text=self.text_for_add_key,fg_color="transparent",command=self.addKey,text_color="darkgreen")
-        self.addKey_button.pack(pady=20,padx=20,anchor="se",side="bottom")
+        self.addKey_button = ctk.CTkButton(self.main_frame, text=self.text_for_add_key, fg_color="transparent",
+                                           command=self.addKey, text_color="darkgreen")
+        self.addKey_button.pack(pady=20, padx=20, anchor="se", side="bottom")
 
         self.title_label = ctk.CTkLabel(self.main_frame, text="ANKI GEN",
                                         font=ctk.CTkFont(family="Courier", size=50, weight="bold"),
                                         text_color="#3498db")
         self.title_label.pack(pady=40)
 
-        self.modelFrame = ctk.CTkFrame(self.main_frame,border_color="#4a4a4a",border_width=4,width=300,height=180)
+        self.modelFrame = ctk.CTkFrame(self.main_frame, border_color="#4a4a4a", border_width=4, width=300, height=180)
         self.modelFrame.pack_propagate(False)
         self.modelFrame.pack(pady=10)
-        self.Modelabel=CTkLabel(self.modelFrame, text="Select Model",)
+        self.Modelabel = CTkLabel(self.modelFrame, text="Select Model", )
         self.Modelabel.pack(pady=10)
-        self.chooseMod=ctk.CTkOptionMenu(self.modelFrame,values=["DeepSeek","Local Model (Ollama)"],command=self.selectModel,state=self.chooseMod_state)
+        self.chooseMod = ctk.CTkOptionMenu(self.modelFrame, values=["DeepSeek", "Local Model (Ollama)"],
+                                           command=self.selectModel, state=self.chooseMod_state)
         self.chooseMod.pack(pady=10)
 
         self.file_btn = ctk.CTkButton(self.main_frame, text="Choose File",
                                       height=60, width=300, corner_radius=10,
-                                      command=lambda : self.select_file(True))
+                                      command=lambda: self.select_file(True))
         self.file_btn.pack(pady=20)
 
         if not self.key_valid:
@@ -168,22 +180,23 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             self.main_frame.destroy()
             self.ask_for_key("ENTER THE NEW KEY")
 
-    def selectModel(self,choice):
+    def selectModel(self, choice):
         """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
-        values={"DeepSeek": 1,"Local Model (Ollama)": 2}
-        model=values.get(choice)
+        values = {"DeepSeek": 1, "Local Model (Ollama)": 2}
+        model = values.get(choice)
 
-        if model==2:
+        if model == 2:
             try:
-                response=ollama.list()
+                response = ollama.list()
                 installed_models = [m.model for m in response.models]
-                self.localMod = ctk.CTkOptionMenu(self.modelFrame, values=installed_models,command=self.select_local_model)
+                self.localMod = ctk.CTkOptionMenu(self.modelFrame, values=installed_models,
+                                                  command=self.select_local_model)
                 self.localMod.pack(pady=20)
-                self.generator = AnkiGen(model,self.localMod.get())
+                self.generator = AnkiGen(model, self.localMod.get())
             except Exception as e:
                 messagebox.showerror("Error", "No ollama found")
         else:
-            self.generator = AnkiGen(model,"")
+            self.generator = AnkiGen(model, "")
             if self.localMod is not None:
                 try:
                     self.localMod.destroy()
@@ -191,11 +204,10 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 except Exception:
                     pass
 
-    def select_local_model(self,choice):
+    def select_local_model(self, choice):
         self.generator.set_model(choice)
 
-
-    def select_file(self,kind:bool):
+    def select_file(self, kind: bool):
         """ Starts file selection dialog. In context to two different cases 1. called  by the main page and 2. called by the details window"""
         if not kind:
             path = filedialog.askopenfilename(filetypes=[("PDF-files", "*.pdf")], parent=self.details_window)
@@ -206,7 +218,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         if path:
             self.generator.set_pdf_handler(Path(path))
             self.selected_file = path
-            if(kind == True):
+            if (kind == True):
                 self.open_details_window()
                 return
 
@@ -223,59 +235,69 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.details_window.attributes("-topmost", True)
         self.details_window.after(200, lambda: self.details_window.iconbitmap(str(self.icon_path)))
 
-        file_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=140)
+        file_frame = ctk.CTkFrame(self.details_window, border_color="#4a4a4a", border_width=4, width=380, height=140)
         file_frame.pack_propagate(False)
         file_frame.pack(pady=10)
-        file_label_frame=ctk.CTkFrame(file_frame,border_color="#4a4a4a",border_width=4,width=100,height=25)
+        file_label_frame = ctk.CTkFrame(file_frame, border_color="#4a4a4a", border_width=4, width=100, height=25)
         file_label_frame.pack(pady=(5, 0))
         file_label_frame.pack_propagate(False)
 
-        #Creates file frame giving the opportunity to see and  change the selected file
-        ctk.CTkLabel(file_label_frame, text="File", font=("Arial", 16, "bold"),width=20,height=25).pack(pady=5)
+        # Creates file frame giving the opportunity to see and  change the selected file
+        ctk.CTkLabel(file_label_frame, text="File", font=("Arial", 16, "bold"), width=20, height=25).pack(pady=5)
         file_name = os.path.basename(self.selected_file)[0:20]
-        if len(os.path.basename(self.selected_file) )> 20:
-            file_name=file_name+"..."
-        self.file_button=(ctk.CTkButton(file_frame, text=str(file_name),command=lambda :self.select_file(False),fg_color="green",hover_color="darkgreen",width=290,height=40,border_color="#004d00",border_width=5,corner_radius=80))
-        self.file_button.pack(pady=20,padx=10,side="left")
-        self.reload_file_button=ctk.CTkButton(file_frame, text="↻",width=40,height=40,corner_radius=20,fg_color="green",hover_color="darkgreen",command=self.execute_reload,border_color="#004d00",border_width=5)
-        self.reload_file_button.pack(side="right",padx=(4,15))
+        if len(os.path.basename(self.selected_file)) > 20:
+            file_name = file_name + "..."
+        self.file_button = (
+            ctk.CTkButton(file_frame, text=str(file_name), command=lambda: self.select_file(False), fg_color="green",
+                          hover_color="darkgreen", width=290, height=40, border_color="#004d00", border_width=5,
+                          corner_radius=80))
+        self.file_button.pack(pady=20, padx=10, side="left")
+        self.reload_file_button = ctk.CTkButton(file_frame, text="↻", width=40, height=40, corner_radius=20,
+                                                fg_color="green", hover_color="darkgreen", command=self.execute_reload,
+                                                border_color="#004d00", border_width=5)
+        self.reload_file_button.pack(side="right", padx=(4, 15))
 
-        #Creates exclude frame which opens the exclude page ui and shows excluded pages
-        exclude_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=45)
+        # Creates exclude frame which opens the exclude page ui and shows excluded pages
+        exclude_frame = ctk.CTkFrame(self.details_window, border_color="#4a4a4a", border_width=4, width=380, height=45)
         exclude_frame.pack()
-        self.exclude_textbox = ctk.CTkTextbox(exclude_frame, width = 200, height = 40,state="disabled")
-        self.exclude_textbox.pack(pady=5, padx=10,side="right")
+        self.exclude_textbox = ctk.CTkTextbox(exclude_frame, width=200, height=40, state="disabled")
+        self.exclude_textbox.pack(pady=5, padx=10, side="right")
         exclude_frame.pack_propagate(False)
-        self.exclude_button=(ctk.CTkButton(exclude_frame,text="Exclude pages",corner_radius=32,command=self.open_exclude_window,width=25))
-        self.exclude_button.pack(pady=5,side="left",padx=10)
+        self.exclude_button = (
+            ctk.CTkButton(exclude_frame, text="Exclude pages", corner_radius=32, command=self.open_exclude_window,
+                          width=25))
+        self.exclude_button.pack(pady=5, side="left", padx=10)
 
-        #Creates context frame giving the opportunity to select the deck name and giving context for card generation
-        context_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=120)
+        # Creates context frame giving the opportunity to select the deck name and giving context for card generation
+        context_frame = ctk.CTkFrame(self.details_window, border_color="#4a4a4a", border_width=4, width=380, height=120)
         context_frame.pack_propagate(False)
         context_frame.pack(pady=5)
-        context_label_frame=ctk.CTkFrame(context_frame,border_color="#4a4a4a",border_width=4,width=130,height=25)
+        context_label_frame = ctk.CTkFrame(context_frame, border_color="#4a4a4a", border_width=4, width=130, height=25)
         context_label_frame.pack_propagate(False)
         context_label_frame.pack(pady=5)
-        ctk.CTkLabel(context_label_frame, text="Deck-Name", font=("Arial", 16, "bold"),width=20,height=25).pack(pady=5)
+        ctk.CTkLabel(context_label_frame, text="Deck-Name", font=("Arial", 16, "bold"), width=20, height=25).pack(
+            pady=5)
         self.context_text = ctk.CTkTextbox(context_frame, width=380, height=50)
         self.context_text.pack(pady=10, padx=20)
 
-        #Creates language frame to choose the card language
-        language_frame=ctk.CTkFrame(self.details_window,border_color="#4a4a4a",border_width=4,width=380,height=50)
+        # Creates language frame to choose the card language
+        language_frame = ctk.CTkFrame(self.details_window, border_color="#4a4a4a", border_width=4, width=380, height=50)
         language_frame.pack_propagate(False)
         language_frame.pack(pady=5)
-        ctk.CTkLabel(language_frame, text="Choose language:",font=("Arial", 16, "bold")).pack(pady=5,side="left",padx=(60,0))
-        self.lang_switch = ctk.CTkOptionMenu(language_frame, values=["Default", "English", "Spanish","German"])
-        self.lang_switch.pack(pady=10,side="right",padx=10)
+        ctk.CTkLabel(language_frame, text="Choose language:", font=("Arial", 16, "bold")).pack(pady=5, side="left",
+                                                                                               padx=(60, 0))
+        self.lang_switch = ctk.CTkOptionMenu(language_frame, values=["Default", "English", "Spanish", "German"])
+        self.lang_switch.pack(pady=10, side="right", padx=10)
 
-        self.info_label=ctk.CTkLabel(self.details_window, text="generate cards", text_color="green")
+        self.info_label = ctk.CTkLabel(self.details_window, text="generate cards", text_color="green")
 
-        #Finish button to start the card generation process
+        # Finish button to start the card generation process
         self.start_btn = ctk.CTkButton(self.details_window, text="generate cards",
                                        fg_color="green", hover_color="darkgreen",
-                                       command=self.start_generation,border_color="#004d00",border_width=5,corner_radius=40,width=200,height=40)
+                                       command=self.start_generation, border_color="#004d00", border_width=5,
+                                       corner_radius=40, width=200, height=40)
         self.start_btn.pack(pady=20)
-        
+
     def open_exclude_window(self):
         """Starts page to exclude pdf pages from the card generation."""
         self.exclude_window = ctk.CTkToplevel(self.details_window)
@@ -287,7 +309,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.exclude_window.attributes("-topmost", True)
         self.exclude_window.after(200, lambda: self.exclude_window.iconbitmap(str(self.icon_path)))
 
-        self.page_states={}
+        self.page_states = {}
 
         self.scroll_frame = ctk.CTkScrollableFrame(
             self.exclude_window,
@@ -296,16 +318,20 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             label_text="Pages"
         )
 
-        self.loading_label = ctk.CTkLabel(self.exclude_window, text="Loading pages...", font=("Arial", 24, "bold"), text_color="green")
+        self.loading_label = ctk.CTkLabel(self.exclude_window, text="Loading pages...", font=("Arial", 24, "bold"),
+                                          text_color="green")
         self.loading_label.pack(expand=True)
 
-        self.finish_button = ctk.CTkButton(self.exclude_window, anchor="s", text="Finish", corner_radius=32, command=self.exclude_window_finish,border_color="#3B8ED0",fg_color="#2B2B2B",hover_color="#3B8ED0",text_color="white",font=("Segoe UI", 13, "bold"),width=400,height=300)
-        
-        #initalite queue for pdf pages
+        self.finish_button = ctk.CTkButton(self.exclude_window, anchor="s", text="Finish", corner_radius=32,
+                                           command=self.exclude_window_finish, border_color="#3B8ED0",
+                                           fg_color="#2B2B2B", hover_color="#3B8ED0", text_color="white",
+                                           font=("Segoe UI", 13, "bold"), width=400, height=300)
+
+        # initalite queue for pdf pages
         self.image_queue = queue.Queue()
         self.current_page_index = 0
         self.columns = 2
-        
+
         threading.Thread(target=self._image_generation_thread, daemon=True).start()
         self.load_next_page()
 
@@ -330,7 +356,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             except queue.Empty:
                 break
 
-             #function stops at the last image
+            # function stops at the last image
             if image is None:
                 if self.loading_label.winfo_exists():
                     self.loading_label.destroy()
@@ -348,11 +374,12 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             state = ctk.BooleanVar(value=False)
             self.page_states[page_num] = state
             ctk_img = ctk.CTkImage(light_image=image, dark_image=image, size=(orig_w, orig_h))
-            
+
             cell_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
             cell_frame.grid(row=row, column=col, padx=10, pady=10)
 
-            checkbox = ctk.CTkCheckBox(cell_frame, text=f"exclude {page_num}", text_color="green", font=("Arial", 14, "bold"), variable=state)
+            checkbox = ctk.CTkCheckBox(cell_frame, text=f"exclude {page_num}", text_color="green",
+                                       font=("Arial", 14, "bold"), variable=state)
             checkbox.pack()
             img_label = ctk.CTkLabel(cell_frame, image=ctk_img, text="")
             img_label._safe_image_reference = ctk_img
@@ -360,23 +387,23 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
         if images_loaded:
             self.exclude_window.update_idletasks()
-            #recursive call for next iteration
+            # recursive call for next iteration
         self.exclude_window.after(10, self.load_next_page)
 
     def exclude_window_finish(self):
-            """safes deleted pages for removing and closes  exclude window"""
-            self.pages_to_delete_sorted = [page_num for page_num, var in self.page_states.items() if var.get()]
-            for page_num in self.pages_to_delete_sorted:
-                if page_num not in self.deleted_pages:
-                    self.deleted_pages.append(page_num)
-            self.deleted_pages.sort()
-            self.pages_to_delete_sorted.sort(reverse=True)
-            output_str=",".join(map(str,self.deleted_pages))
-            self.exclude_textbox.configure(state="normal")
-            self.exclude_textbox.delete(1.0,"end")
-            self.exclude_textbox.insert("end",output_str)
-            self.exclude_textbox.configure(state="disabled")
-            self.exclude_window.destroy()
+        """safes deleted pages for removing and closes  exclude window"""
+        self.pages_to_delete_sorted = [page_num for page_num, var in self.page_states.items() if var.get()]
+        for page_num in self.pages_to_delete_sorted:
+            if page_num not in self.deleted_pages:
+                self.deleted_pages.append(page_num)
+        self.deleted_pages.sort()
+        self.pages_to_delete_sorted.sort(reverse=True)
+        output_str = ",".join(map(str, self.deleted_pages))
+        self.exclude_textbox.configure(state="normal")
+        self.exclude_textbox.delete(1.0, "end")
+        self.exclude_textbox.insert("end", output_str)
+        self.exclude_textbox.configure(state="disabled")
+        self.exclude_window.destroy()
 
     def execute_reload(self):
         """reloads document and exclude textbox"""
@@ -391,9 +418,10 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def start_generation(self):
         """updates detail page for generation of cards, initialize generation"""
-        self.start_btn.configure(state="disabled",text="Generating cards...")
-        thread=threading.Thread(target=self.run_gen)
-        self.bar=ctk.CTkProgressBar(self.details_window,orientation="horizontal",progress_color="#5353ec",determinate_speed=0.5,border_color="blue",fg_color="#3B8ED0")
+        self.start_btn.configure(state="disabled", text="Generating cards...")
+        thread = threading.Thread(target=self.run_gen)
+        self.bar = ctk.CTkProgressBar(self.details_window, orientation="horizontal", progress_color="#5353ec",
+                                      determinate_speed=0.5, border_color="blue", fg_color="#3B8ED0")
         self.bar.pack(pady=10)
         self.bar.start()
         self.info_label = ctk.CTkLabel(self.details_window, text="generating cards ...", text_color="green")
@@ -404,22 +432,22 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         """generates cards"""
         for page in self.deleted_pages:
             self.generator.handler.delete_page(page - 1)
-        deck_name=self.context_text.get("1.0","end-1c").strip()
-        cards= self.generator.createCards(self.lang_switch.get(),self.info_label)
+        deck_name = self.context_text.get("1.0", "end-1c").strip()
+        cards = self.generator.createCards(self.lang_switch.get(), self.info_label)
         if not cards:
             messagebox.showerror("Error", "No cards generated.")
             self.details_window.after(10, self.details_window.destroy)
             return
-        handler=anki_handler(deck_name)
+        handler = anki_handler(deck_name)
         handler.add_fields(cards)
-        output_path=base_path/"output"
+        output_path = base_path / "output"
         output_path.mkdir(exist_ok=True)
         handler.safe_tofile(output_path)
-        self.after(0,self.finish)
+        self.after(0, self.finish)
 
     def finish(self):
         """finishes generating cards"""
-        if(self.details_window.winfo_exists()):
+        if (self.details_window.winfo_exists()):
             self.details_window.destroy()
         messagebox.showinfo("AnkiGen", "Generation successful!")
 

@@ -1,5 +1,6 @@
 import concurrent.futures
 import json
+import logging
 import math
 import os
 import pathlib
@@ -9,6 +10,7 @@ import customtkinter as ctk
 import ollama
 from dotenv import load_dotenv
 from openai import OpenAI
+from sentence_transformers import SentenceTransformer
 
 from handler.pdf_handler import pdf_handler
 from . import embedding
@@ -16,8 +18,10 @@ from . import embedding
 
 class AnkiGen:
     def __init__(self, model_type: int, model: str):
+        self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
         self.model = model
         self.type = model_type
+        self.logger = logging.getLogger(__name__)
         load_dotenv()
         if self.type == 1:
             self.workers = 30
@@ -112,13 +116,24 @@ class AnkiGen:
         INPUT_CARDS_TO_FIX:
         {json.dumps(flashcard)}
         """
+        self.logger.info("Rework Worse Cards")
+        self.logger.info(
+            "___________________________________________________________________________________________________")
         print("Rework Worse Cards")
         print("___________________________________________________________________________________________________")
         print(flashcard)
+        print("___________________________________________________________________________________________________")
+        self.logger.info("Rework Worse Cards")
+        self.logger.info(
+            "___________________________________________________________________________________________________")
+        self.logger.info(flashcard)
+        self.logger.info(
+            "___________________________________________________________________________________________________")
         return self.run_prompt(rework_system_prompt, rework_user_prompt, "Rework error", 1)
 
     def rework(self, cards: list[dict]):
         """reworks created anki cards deletes unnecessary and bad cards"""
+        self.logger.info("Rework Anki Cards")
         print("rework started")
         n = math.ceil(len(cards) / self.rework_size)
         rework_cards = []
@@ -131,10 +146,10 @@ class AnkiGen:
                 try:
                     rework_cards.extend(future.result())
                 except Exception as e:
-                    print(f"Fehler{e}")
+                    self.logger.error(f"Error: {e}")
         print(rework_cards)
-        embeddet = embedding.delete_dupes(rework_cards)
-        print_line("_____________________________________")
+        embeddet = embedding.delete_dupes(rework_cards, self.embedding_model, self.logger)
+        print("_____________________________________")
         print(embeddet)
         return embeddet
 
@@ -153,7 +168,7 @@ class AnkiGen:
                     page_cards = future.result()
                     all_cards.extend(page_cards)
                 except Exception as e:
-                    print(f"Fehler: {e}")
+                    self.logger.error(f"Error: {e}")
         info_label.configure(text="execute card rework ...")
         final_cards = self.rework(all_cards)
         return final_cards
@@ -239,7 +254,7 @@ class AnkiGen:
                         final_cards.extend(self.rework_flashcard(cards_to_improve))
 
             except Exception as e:
-                print(f"{error_message} {e}")
+                self.logger.error(f"{error_message} {e}")
                 return []
 
         elif self.type == 2:
@@ -259,6 +274,6 @@ class AnkiGen:
                     final_cards.extend(data.get("keep", []))
 
             except Exception as e:
-                print(f"{error_message} {e}")
+                self.logger.error(f"{error_message} {e}")
                 return []
         return final_cards
