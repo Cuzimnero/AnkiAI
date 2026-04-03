@@ -4,7 +4,6 @@ import logging
 import math
 import os
 import pathlib
-from ftplib import print_line
 
 import customtkinter as ctk
 import ollama
@@ -116,25 +115,13 @@ class AnkiGen:
         INPUT_CARDS_TO_FIX:
         {json.dumps(flashcard)}
         """
-        self.logger.info("Rework Worse Cards")
-        self.logger.info(
-            "___________________________________________________________________________________________________")
-        print("Rework Worse Cards")
-        print("___________________________________________________________________________________________________")
-        print(flashcard)
-        print("___________________________________________________________________________________________________")
-        self.logger.info("Rework Worse Cards")
-        self.logger.info(
-            "___________________________________________________________________________________________________")
-        self.logger.info(flashcard)
-        self.logger.info(
-            "___________________________________________________________________________________________________")
+        self.logger.info(f"Reworking {len(flashcard)} flashcards.")
+        self.logger.debug(f"Flashcards to rework: {flashcard}")
         return self.run_prompt(rework_system_prompt, rework_user_prompt, "Rework error", 1)
 
     def rework(self, cards: list[dict]):
         """reworks created anki cards deletes unnecessary and bad cards"""
-        self.logger.info("Rework Anki Cards")
-        print("rework started")
+        self.logger.info("Reworking anki cards...")
         n = math.ceil(len(cards) / self.rework_size)
         rework_cards = []
         pending_tasks = []
@@ -147,10 +134,9 @@ class AnkiGen:
                     rework_cards.extend(future.result())
                 except Exception as e:
                     self.logger.error(f"Error: {e}")
-        print(rework_cards)
+        self.logger.info(f"Reworked cards: {len(rework_cards)}")
         embeddet = embedding.delete_dupes(rework_cards, self.embedding_model, self.logger)
-        print("_____________________________________")
-        print(embeddet)
+        self.logger.info(f"Cards after duplicate deletion: {len(embeddet)}")
         return embeddet
 
     def createCards(self, language: str, info_label: ctk.CTkLabel):
