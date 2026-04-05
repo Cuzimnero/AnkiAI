@@ -5,6 +5,7 @@ from PIL import Image
 
 
 class pdf_handler:
+
     def doc_reload(self):
         """reload doc from PDF file"""
         self.doc.close()
@@ -36,5 +37,9 @@ class pdf_handler:
 
     def delete_page(self, page: int):
         """Deletes a specific page by index and updates the total page count."""
-        self.doc.delete_page(page)
-        self.pages = len(self.doc)
+        try:
+            self.doc.delete_page(page)
+            self.pages = len(self.doc)
+            return
+        except Exception as e:
+            raise ValueError("Page does not exist")

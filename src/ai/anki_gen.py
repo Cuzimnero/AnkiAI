@@ -17,7 +17,6 @@ from . import embedding
 
 class AnkiGen:
     def __init__(self, model_type: int, model: str):
-        self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
         self.model = model
         self.type = model_type
         self.logger = logging.getLogger(__name__)
@@ -31,6 +30,9 @@ class AnkiGen:
 
     def set_pdf_handler(self, path: pathlib.Path):
         self.handler = pdf_handler(path)
+
+    def load_embedding_model(self):
+        self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
     def set_model(self, model: str):
         self.model = model
@@ -161,15 +163,16 @@ class AnkiGen:
 
     def _createCard_part(self, input: str, language: str):
         system_prompt = r"""
+        Answer in English
         You are a professional Flashcard creator. 
         Analyze the provided text and extract the core concepts into flashcards.
         Output MUST be a valid JSON object containing a list called 'cards'.
         Each card must have 'front' and 'back' fields.
         Example:
                 {
-          "cards": [
+        "cards": [
             {
-              "front": "What is a apple?",
+        "front": "What is a apple?",
               "back": "A fruit",
               "topic": "Fruits"
             }
@@ -193,7 +196,9 @@ class AnkiGen:
         """
 
         user_prompt = f"""
-        Convert the following lecture notes into necessary high-quality Anki cards use all important things. If its makes sense use Multiple-choice options use the language {language} default means the language of the lecture.
+        Convert the following lecture notes into necessary high-quality Anki cards use all important things.
+        LANGUAGE RULE:
+        - All content (front, back, topic) MUST be in {language}.
         STRICT RULES:
         1. IGNORE all organizational data: Do not create cards about professor names, university names, course IDs, dates, slide numbers, or bibliography.
         2. FOCUS on: Definitions, technical concepts, algorithms, code logic, and factual relationships.
