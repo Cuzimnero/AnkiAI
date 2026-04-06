@@ -137,7 +137,17 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def start_generation(self):
         """updates detail page for generation of cards, initialize generation"""
+        self.logger.info(f"generating starts with {self.generator.threshold_value} Threshold")
+        if self.generator.threshold_value > 0.8:
+            self.logger.warning(
+                f" High threshold {self.generator.threshold_value}: Strict filtering. Many cards might be skipped.")
+        elif self.generator.threshold_value < 0.7:
+            self.logger.warning(
+                f" Low threshold {self.generator.threshold_value}: More cards, but higher chance of duplicates.")
+
         self.details_window.start_btn.configure(state="disabled", text="Generating cards...")
+        self.details_window.disable()
+
         thread = threading.Thread(target=self.run_gen)
         self.details_window.start_progress_bar()
         self.generator.load_embedding_model()
@@ -155,7 +165,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 self.after(0, self.handle_pdf_error)
                 return
         deck_name = self.details_window.context_text.get("1.0", "end-1c").strip()
-        cards = self.generator.createCards(self.details_window.lang_switch.get(), self.details_window.info_label)
+        cards = self.generator.createCards(self.details_window.language_switch.get(), self.details_window.info_label)
         if not cards:
             messagebox.showerror("Error", "No cards generated.")
             self.details_window.after(10, self.details_window.destroy)

@@ -17,6 +17,7 @@ from . import embedding
 
 class AnkiGen:
     def __init__(self, model_type: int, model: str):
+        self.threshold_value = 0.8
         self.model = model
         self.type = model_type
         self.logger = logging.getLogger(__name__)
@@ -30,6 +31,9 @@ class AnkiGen:
 
     def set_pdf_handler(self, path: pathlib.Path):
         self.handler = pdf_handler(path)
+
+    def set_threshold_value(self, threshold_value: float):
+        self.threshold_value = threshold_value
 
     def load_embedding_model(self):
         self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
@@ -137,7 +141,7 @@ class AnkiGen:
                 except Exception as e:
                     self.logger.error(f"Error: {e}")
         self.logger.info(f"Reworked cards: {len(rework_cards)}")
-        embeddet = embedding.delete_dupes(rework_cards, self.embedding_model, self.logger)
+        embeddet = embedding.delete_dupes(rework_cards, self.embedding_model, self.logger, self.threshold_value)
         self.logger.info(f"Cards after duplicate deletion: {len(embeddet)}")
         return embeddet
 

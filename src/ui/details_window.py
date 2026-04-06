@@ -14,29 +14,28 @@ class details_window(ctk.CTkToplevel):
         self.resizable(False, False)
         self.app_instance = app_instance
         self.title("Config")
-        self.geometry("400x550")
+        self.geometry("400x660")
         self.attributes("-topmost", True)
         self.after(200, lambda: self.iconbitmap(str(self.app_instance.icon_path)))
         self.file_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=140)
-        self.file_label_frame = ctk.CTkFrame(self.file_frame, border_color="#4a4a4a", border_width=4, width=100,
+        self.file_label_frame = ctk.CTkFrame(self.file_frame, border_width=4, width=100,
                                              height=25)
         self.app_instance.generator.set_pdf_handler(self.app_instance.selected_file)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Creates file frame giving the opportunity to see and  change the selected file
-        ctk.CTkLabel(self.file_label_frame, text="File", font=("Arial", 16, "bold"), width=20, height=25).pack(pady=5)
+        ctk.CTkLabel(self.file_label_frame, text="File", font=("Arial", 16, "bold"), width=20, height=25).pack(pady=10)
         file_name = os.path.basename(app_instance.selected_file)[0:20]
         if len(os.path.basename(self.app_instance.selected_file)) > 20:
             file_name = file_name + "..."
         self.file_button = (
             ctk.CTkButton(self.file_frame, text=str(file_name),
                           command=lambda: self.app_instance.main_ui.select_file(False),
-                          fg_color="green",
-                          hover_color="darkgreen", width=290, height=40, border_color="#004d00", border_width=5,
+                          width=290, height=40,
                           corner_radius=80))
         self.reload_file_button = ctk.CTkButton(self.file_frame, text="↻", width=40, height=40, corner_radius=20,
-                                                fg_color="green", hover_color="darkgreen", command=self.execute_reload,
-                                                border_color="#004d00", border_width=5)
+                                                command=self.execute_reload,
+                                                border_color="#4a4a4a")
 
         # Creates exclude frame which opens the exclude page ui and shows excluded pages
         self.exclude_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=45)
@@ -57,8 +56,24 @@ class details_window(ctk.CTkToplevel):
         # Creates language frame to choose the card language
         self.language_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=50)
         self.language_info = ctk.CTkLabel(self.language_frame, text="Choose language:", font=("Arial", 16, "bold"))
-        self.lang_switch = ctk.CTkOptionMenu(self.language_frame, values=["Default", "English", "Spanish", "German"])
+        self.language_switch = ctk.CTkOptionMenu(self.language_frame,
+                                                 values=["Default", "English", "Spanish", "German"])
         self.info_label = ctk.CTkLabel(self, text="generate cards", text_color="green")
+
+        self.embedding_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=100)
+        self.embedding_info = ctk.CTkLabel(self.embedding_frame, text="Embedding Threshold:",
+                                           font=("Arial", 16, "bold"))
+        self.threshold_slider_frame = ctk.CTkFrame(self.embedding_frame, fg_color="transparent", width=150, height=50)
+        self.threshold_slider = ctk.CTkSlider(self.threshold_slider_frame, from_=50, to=100, number_of_steps=50,
+                                              width=150,
+                                              height=20, command=self.threshold_slider_execute)
+        self.threshold_slider.set(80)
+        self.threshold_value_label = ctk.CTkLabel(
+            self.threshold_slider_frame,
+            text="0.8",
+            font=("Arial", 12, "bold"),
+            text_color="gray70"
+        )
 
         # Finish button to start the card generation process
         self.start_btn = ctk.CTkButton(self, text="generate cards",
@@ -78,6 +93,12 @@ class details_window(ctk.CTkToplevel):
             self.app_instance.pages_to_delete_sorted.clear()
             self.app_instance.exclude_window.deleted_pages.clear()
 
+    def threshold_slider_execute(self, value):
+        threshold = value / 100
+        self.threshold_value_label.configure(text=threshold)
+        if hasattr(self.app_instance, "generator"):
+            self.app_instance.generator.set_threshold_value(threshold)
+
     def show(self):
         self.file_frame.pack(pady=10)
         self.file_label_frame.pack(pady=(5, 0))
@@ -85,7 +106,7 @@ class details_window(ctk.CTkToplevel):
         self.exclude_frame.pack(pady=5)
         self.context_frame.pack(pady=5)
         self.language_frame.pack(pady=5)
-        self.language_info.pack(pady=5, side="left", padx=(60, 0))
+        self.language_info.pack(pady=5, side="left", padx=(40, 0))
 
         self.file_button.pack(pady=20, padx=10, side="left")
         self.reload_file_button.pack(side="right", padx=(4, 15))
@@ -93,10 +114,17 @@ class details_window(ctk.CTkToplevel):
         self.exclude_button.pack(pady=5, side="left", padx=10)
         self.exclude_textbox.pack(pady=5, padx=10, side="right")
 
-        self.context_label_frame.pack(pady=5)
+        self.context_label_frame.pack(pady=10)
         self.context_label.pack(pady=5)
         self.context_text.pack(pady=10, padx=20)
-        self.lang_switch.pack(pady=10, side="right", padx=10)
+        self.language_switch.pack(pady=10, side="right", padx=10)
+
+        self.embedding_frame.pack(pady=10)
+
+        self.embedding_info.pack(side="left", padx=(15, 5), pady=10)
+        self.threshold_slider_frame.pack(side="left", expand=True)
+        self.threshold_slider.pack(side="top", padx=5, pady=(10, 0), fill="x")
+        self.threshold_value_label.pack(side="top", padx=5, pady=(0, 5), anchor="center")
 
         self.start_btn.pack(pady=20)
 
@@ -105,6 +133,7 @@ class details_window(ctk.CTkToplevel):
         self.context_frame.pack_propagate(False)
         self.context_label_frame.pack_propagate(False)
         self.language_frame.pack_propagate(False)
+        self.embedding_frame.pack_propagate(False)
 
     def reload_excludes_textbox(self):
         self.deleted_pages = []
@@ -126,3 +155,11 @@ class details_window(ctk.CTkToplevel):
         if self.app_instance.main_ui.localMod is not None:
             self.app_instance.main_ui.localMod.configure(state="normal")
         self.destroy()
+
+    def disable(self):
+        self.threshold_slider.configure(state="disabled")
+        self.language_switch.configure(state="disabled")
+        self.context_text.configure(state="disabled")
+        self.exclude_button.configure(state="disabled")
+        self.file_button.configure(state="disabled")
+        self.reload_file_button.configure(state="disabled")

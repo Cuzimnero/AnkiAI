@@ -9,7 +9,7 @@ for Anki.
 
 * **AI Determinism:** Please be aware that Large Language Models (LLMs) are non-deterministic by nature. This means that
   for the same input, the results—including the number of cards, level of detail, and formatting—may vary between runs.
-
+* **OS Support:** Currently supports Windows only.
 * **Local Execution (Ollama):** Running models locally ensures 100% privacy, but it involves significant hardware and
   performance trade-offs:
     * **System Resources:** Generation is resource-intensive and relies heavily on your hardware. A minimum of 8 GB VRAM
@@ -37,6 +37,9 @@ For the best balance between speed and logic when generating Anki cards via Olla
 * **Ollama Integration:** Support for local LLMs via Ollama ensures your data never leaves your machine.
 * **Direct Export:** Generates files ready for Anki import (no additional plugins like AnkiConnect required).
 * **Smart Formatting:** Automatically structures complex information into concise Q&A pairs.
+* **Smart Duplicate Filtering:** Integrated an adjustable Embedding Threshold to control card density. Easily balance
+  between maximum content coverage (lower threshold)
+  and strictly unique flashcards (higher threshold) to avoid redundant information.
 
 ---
 
