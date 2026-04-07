@@ -1,7 +1,7 @@
+from tkinter import messagebox
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
-import messagebox
 from openai import APIError, OpenAI
 
 if TYPE_CHECKING:
@@ -82,7 +82,7 @@ class verification:
 
     def has_no_api_key(self):
         self.app_instance.chooseMod_state = "disabled"
-        self.app_instance.selectModel(2)
+        self.app_instance.select_model(2)
         self.app_instance.text_for_add_key = "Add DeepSeek Key"
         self.app_instance.key_valid = False
         self.key_frame.destroy()

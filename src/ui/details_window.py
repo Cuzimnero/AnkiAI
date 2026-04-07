@@ -14,7 +14,7 @@ class details_window(ctk.CTkToplevel):
         self.resizable(False, False)
         self.app_instance = app_instance
         self.title("Config")
-        self.geometry("400x660")
+        self.geometry("400x670")
         self.attributes("-topmost", True)
         self.after(200, lambda: self.iconbitmap(str(self.app_instance.icon_path)))
         self.file_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=140)

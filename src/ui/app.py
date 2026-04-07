@@ -27,22 +27,25 @@ except Exception:
 
 # Determine base path for resources (handles both standard script and PyInstaller .exe)
 if getattr(sys, 'frozen', False):
-    base_path = Path(sys._MEIPASS)
+    temp_path = Path(sys._MEIPASS)
+    base_path = Path(sys.executable).parent
 else:
+    temp_path = Path(__file__).parent.parent.parent
     base_path = Path(__file__).parent.parent.parent
 
 # Add the project root to sys.path to ensure internal modules can be imported correctly
-if str(base_path) not in sys.path:
-    sys.path.insert(0, str(base_path))
+if str(temp_path) not in sys.path:
+    sys.path.insert(0, str(temp_path))
 
 
 # Application interface
 class App(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         """Initializes the main application, window settings, and authentication state."""
+        self.ollama_available = True
         self.pages_to_delete_sorted = []
         self.main_ui = None
-        log_filename = datetime.now().ctime().replace(":", r"-") + ".log"
+        log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
         logging_path = base_path / "logs"
         logging_path.mkdir(exist_ok=True, parents=True)
         log_file = logging_path / log_filename
@@ -57,7 +60,12 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.verification = verification(self)
         self.localMod = None
         self.deleted_pages = []
-        self.icon_path = base_path / "src" / "ui" / "logo.ico"
+
+        if getattr(sys, 'frozen', False):
+            self.icon_path = temp_path / "ui" / "logo.ico"
+        else:
+            self.icon_path = temp_path / "src" / "ui" / "logo.ico"
+
         super().__init__()
         self.iconbitmap(str(self.icon_path))
 
@@ -86,7 +94,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         self.main_ui = main_ui(self)
         self.main_ui.show()
 
-    def selectModel(self, choice):
+    def select_model(self, choice):
         """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
         values = {"DeepSeek": 1, "Local Model (Ollama)": 2}
         model = values.get(choice)
@@ -96,7 +104,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 response = ollama.list()
                 installed_models = [m.model for m in response.models]
                 if self.main_ui and self.main_ui.main_frame.winfo_exists():
-                    self.main_ui.selectModel(choice, installed_models)
+                    self.main_ui.select_model(choice, installed_models)
                 if installed_models:
                     default_model = installed_models[0]
                 else:
@@ -108,13 +116,15 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                     messagebox.showwarning("Warning", "You have no models installed!")
 
                 self.generator = AnkiGen(model, default_model)
+                self.ollama_available = True
             except Exception as e:
                 messagebox.showerror("Error", str(e))
+                self.ollama_available = False
         else:
             if self.main_ui and hasattr(self.main_ui, "file_btn"):
                 if self.main_ui.file_btn.winfo_exists():
                     self.main_ui.file_btn.configure(state="normal")
-            self.main_ui.destroy_local_mod()
+                    self.main_ui.destroy_local_mod()
             self.generator = AnkiGen(model, "")
 
     def set_model(self, model: str):
@@ -171,6 +181,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             self.details_window.after(10, self.details_window.destroy)
             self.main_ui.file_btn.configure(state="normal")
             return
+
         handler = anki_handler(deck_name)
         handler.add_fields(cards)
         output_path = base_path / "output"

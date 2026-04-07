@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import pathlib
+import sys
 
 import customtkinter as ctk
 import ollama
@@ -11,8 +12,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
+from ai import embedding
 from handler.pdf_handler import pdf_handler
-from . import embedding
 
 
 class AnkiGen:
@@ -36,7 +37,17 @@ class AnkiGen:
         self.threshold_value = threshold_value
 
     def load_embedding_model(self):
-        self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        if getattr(sys, 'frozen', False):
+            model_path = os.path.join(sys._MEIPASS, "ai", "model_data")
+            self.embedding_model = SentenceTransformer(model_path, local_files_only=True)
+        else:
+            model_path = os.path.join("src", "ai", "model_data")
+            if not os.path.exists(model_path):
+                self.logger.warning("Model not found. Downloading for the first time...")
+                temp_model = SentenceTransformer('all-MiniLM-L6-v2')
+                temp_model.save(model_path)
+                self.logger.warning(f"Model got saved in  {model_path}")
+            self.embedding_model = SentenceTransformer(model_path)
 
     def set_model(self, model: str):
         self.model = model
@@ -107,9 +118,9 @@ class AnkiGen:
         - Keep the language professional and concise.
 
         ### OUTPUT FORMAT:
-        You MUST return a valid JSON object with a single list called 'refined_cards':
+        You MUST return a valid JSON object with a single list called 'cards':
         {
-          "refined_cards": [
+          "cards": [
             {"front": "...", "back": "...", "topic": "..."},
             {"front": "...", "back": "...", "topic": "..."}
           ]
@@ -216,7 +227,7 @@ class AnkiGen:
         
         ---
         """
-        return self.run_prompt(system_prompt, user_prompt, "generation error", 3)
+        return self.run_prompt(system_prompt, user_prompt, "generation error", 1)
 
     def run_prompt(self, system_prompt: str, user_prompt: str, error_message: str, case: int):
         final_cards = []
@@ -238,8 +249,6 @@ class AnkiGen:
                 response = client.chat.completions.create(**params)
                 data = json.loads(response.choices[0].message.content)
                 if case == 1:
-                    final_cards.extend(data.get("refined_cards", []))
-                elif case == 3:
                     final_cards.extend(data.get("cards", []))
                 else:
                     well_cards = data.get("keep", [])
@@ -259,8 +268,6 @@ class AnkiGen:
                                                  {"role": "user", "content": user_prompt}])
                 data = json.loads(response.message.content)
                 if case == 1:
-                    final_cards.extend(data.get("refined_cards", []))
-                elif case == 3:
                     final_cards.extend(data.get("cards", []))
                 else:
                     cards_to_improve = data.get("rework", [])

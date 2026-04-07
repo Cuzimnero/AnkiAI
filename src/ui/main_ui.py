@@ -24,13 +24,16 @@ class main_ui:
         self.modelFrame = ctk.CTkFrame(self.main_frame, border_color="#4a4a4a", border_width=4, width=300, height=180)
         self.Modelabel = ctk.CTkLabel(self.modelFrame, text="Select Model", )
         self.chooseMod = ctk.CTkOptionMenu(self.modelFrame, values=["DeepSeek", "Local Model (Ollama)"],
-                                           command=self.app_instance.selectModel,
+                                           command=self.app_instance.select_model,
                                            state=self.app_instance.chooseMod_state)
         self.file_btn = ctk.CTkButton(self.main_frame, text="Choose File",
                                       height=60, width=300, corner_radius=10,
                                       command=lambda: self.select_file(True))
         if not self.app_instance.key_valid:
-            self.app_instance.selectModel("Local Model (Ollama)")
+            self.app_instance.select_model("Local Model (Ollama)")
+            if not self.app_instance.ollama_available:
+                self.chooseMod.configure(state="disabled")
+                self.file_btn.configure(state="disabled")
 
     def show(self):
         self.title_label.pack(pady=40)
@@ -74,7 +77,7 @@ class main_ui:
                 self.localMod.configure(state="normal")
             return
 
-    def selectModel(self, choice, installed_models):
+    def selectModel(self, installed_models):
         """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
         self.destroy_local_mod()
         self.localMod = ctk.CTkOptionMenu(self.modelFrame, values=installed_models,
@@ -91,3 +94,9 @@ class main_ui:
 
     def destroy(self):
         self.main_frame.destroy()
+
+    def disable(self):
+        self.file_btn.configure(state="disabled")
+        self.chooseMod.configure(state="disabled")
+        if hasattr(self, "localMod"):
+            self.localMod.configure(state="disabled")
