@@ -1,3 +1,4 @@
+import logging
 from tkinter import messagebox
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
 
 class verification:
     def __init__(self, app_instance: App):
+        self.logger = logging.getLogger(__name__)
         self.key_frame = None
         self.info_label = None
         self.btn_login = None
@@ -29,8 +31,10 @@ class verification:
                 stream=False
                 , max_tokens=1
             )
+            self.logger.info("Checked DeepSeek key: Valid")
             return True
         except APIError:
+            self.logger.info("Checked DeepSeek key: not Valid")
             return False
 
     def ask_for_key(self, dialog_message: str, key_exist: bool, escape_message: str):
@@ -72,7 +76,6 @@ class verification:
         self.app_instance.start()
 
     def ask_for_key_action_handler(self, key_exist: bool):
-        print(key_exist)
         if (key_exist):
             self.key_frame.destroy()
             self.app_instance.start()
@@ -82,11 +85,15 @@ class verification:
 
     def has_no_api_key(self):
         self.app_instance.chooseMod_state = "disabled"
-        self.app_instance.select_model(2)
         self.app_instance.text_for_add_key = "Add DeepSeek Key"
         self.app_instance.key_valid = False
         self.key_frame.destroy()
         self.app_instance.start()
+        try:
+            self.app_instance.main_ui.set_choose_mod("Local Model (Ollama)")
+        except ValueError as e:
+            self.logger.error(e)
+        self.app_instance.select_model(2)
 
     def addKey(self):
         self.app_instance.main_ui.destroy()

@@ -2,12 +2,14 @@ import os
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
+from PIL import Image
 
 if TYPE_CHECKING:
     from ui.app import App
 
 
 class details_window(ctk.CTkToplevel):
+
     def __init__(self, app_instance: App):
         """Starts config page when a file is selected """
         super().__init__(app_instance)
@@ -28,14 +30,20 @@ class details_window(ctk.CTkToplevel):
         file_name = os.path.basename(app_instance.selected_file)[0:20]
         if len(os.path.basename(self.app_instance.selected_file)) > 20:
             file_name = file_name + "..."
+        icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "reload_icon.png"
+        refresh_icon = ctk.CTkImage(light_image=Image.open(icon_path),
+                                    dark_image=Image.open(icon_path),
+                                    size=(30, 30))
         self.file_button = (
             ctk.CTkButton(self.file_frame, text=str(file_name),
                           command=lambda: self.app_instance.main_ui.select_file(False),
                           width=290, height=40,
                           corner_radius=80))
-        self.reload_file_button = ctk.CTkButton(self.file_frame, text="↻", width=40, height=40, corner_radius=20,
+        self.reload_file_button = ctk.CTkButton(self.file_frame, width=36, height=36,
+                                                text="", hover=False,
                                                 command=self.execute_reload,
-                                                border_color="#4a4a4a")
+                                                fg_color="transparent",
+                                                image=refresh_icon)
 
         # Creates exclude frame which opens the exclude page ui and shows excluded pages
         self.exclude_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=45)
@@ -146,20 +154,18 @@ class details_window(ctk.CTkToplevel):
                                       determinate_speed=0.5, border_color="blue", fg_color="#3B8ED0")
         self.bar.pack(pady=10)
         self.bar.start()
-        self.info_label = ctk.CTkLabel(self, text="generating cards ...", text_color="green")
+        self.info_label = ctk.CTkLabel(self, text="generating cards ...", font=("Arial", 14, "italic"),
+                                       text_color="green")
         self.info_label.pack(pady=5)
 
     def on_closing(self):
-        self.app_instance.main_ui.file_btn.configure(state="normal")
-        self.app_instance.main_ui.chooseMod.configure(state="normal")
-        if self.app_instance.main_ui.localMod is not None:
-            self.app_instance.main_ui.localMod.configure(state="normal")
+        self.app_instance.main_ui.change_buttons_case_1()
         self.destroy()
 
-    def disable(self):
-        self.threshold_slider.configure(state="disabled")
-        self.language_switch.configure(state="disabled")
-        self.context_text.configure(state="disabled")
-        self.exclude_button.configure(state="disabled")
-        self.file_button.configure(state="disabled")
-        self.reload_file_button.configure(state="disabled")
+    def change_button_states(self, state: str):
+        self.threshold_slider.configure(state=state)
+        self.language_switch.configure(state=state)
+        self.context_text.configure(state=state)
+        self.exclude_button.configure(state=state)
+        self.file_button.configure(state=state)
+        self.reload_file_button.configure(state=state)

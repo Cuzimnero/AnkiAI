@@ -17,7 +17,7 @@ class ExcludeWindow(ctk.CTkToplevel):
         self.focus_force()
         self.grab_set()
         self.lift()
-        self.geometry("820x950")
+        self.geometry("900x950")
         self.attributes("-topmost", True)
         self.after(200, lambda: self.iconbitmap(str(self.app.icon_path)))
         self.page_states = {}

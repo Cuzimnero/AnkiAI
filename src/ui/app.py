@@ -42,6 +42,7 @@ if str(temp_path) not in sys.path:
 class App(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         """Initializes the main application, window settings, and authentication state."""
+        self.base_path = base_path
         self.ollama_available = True
         self.pages_to_delete_sorted = []
         self.main_ui = None
@@ -93,6 +94,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
     def start(self):
         self.main_ui = main_ui(self)
         self.main_ui.show()
+        self.update_idletasks()
 
     def select_model(self, choice):
         """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
@@ -104,7 +106,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 response = ollama.list()
                 installed_models = [m.model for m in response.models]
                 if self.main_ui and self.main_ui.main_frame.winfo_exists():
-                    self.main_ui.select_model(choice, installed_models)
+                    self.main_ui.select_model(installed_models)
                 if installed_models:
                     default_model = installed_models[0]
                 else:
@@ -119,6 +121,12 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 self.ollama_available = True
             except Exception as e:
                 messagebox.showerror("Error", str(e))
+                if self.main_ui and hasattr(self.main_ui, "file_btn"):
+                    try:
+                        if self.main_ui.file_btn.winfo_exists():
+                            self.main_ui.file_btn.configure(state="disabled")
+                    except Exception:
+                        pass
                 self.ollama_available = False
         else:
             if self.main_ui and hasattr(self.main_ui, "file_btn"):
@@ -156,7 +164,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 f" Low threshold {self.generator.threshold_value}: More cards, but higher chance of duplicates.")
 
         self.details_window.start_btn.configure(state="disabled", text="Generating cards...")
-        self.details_window.disable()
+        self.details_window.change_button_states("disabled")
 
         thread = threading.Thread(target=self.run_gen)
         self.details_window.start_progress_bar()
@@ -179,7 +187,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         if not cards:
             messagebox.showerror("Error", "No cards generated.")
             self.details_window.after(10, self.details_window.destroy)
-            self.main_ui.file_btn.configure(state="normal")
+            self.main_ui.change_button_states("normal")
             return
 
         handler = anki_handler(deck_name)
@@ -193,7 +201,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         """finishes generating cards"""
         if self.details_window.winfo_exists():
             self.details_window.destroy()
-        self.main_ui.file_btn.configure(state="normal")
+        self.main_ui.change_button_states("normal")
         messagebox.showinfo("AnkiGen", "Generation successful!")
 
 

@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from tkinter import filedialog
@@ -14,6 +15,8 @@ class main_ui:
     def __init__(self, app_instance: App):
         self.localMod = None
         self.app_instance = app_instance
+        self.logger = logging.getLogger(__name__)
+
         self.main_frame = ctk.CTkFrame(self.app_instance)
         self.addKey_button = ctk.CTkButton(self.main_frame, text=self.app_instance.text_for_add_key,
                                            fg_color="transparent",
@@ -29,11 +32,6 @@ class main_ui:
         self.file_btn = ctk.CTkButton(self.main_frame, text="Choose File",
                                       height=60, width=300, corner_radius=10,
                                       command=lambda: self.select_file(True))
-        if not self.app_instance.key_valid:
-            self.app_instance.select_model("Local Model (Ollama)")
-            if not self.app_instance.ollama_available:
-                self.chooseMod.configure(state="disabled")
-                self.file_btn.configure(state="disabled")
 
     def show(self):
         self.title_label.pack(pady=40)
@@ -45,12 +43,21 @@ class main_ui:
         self.chooseMod.pack(pady=10)
         self.file_btn.pack(pady=20)
 
+        if not self.app_instance.key_valid:
+            self.app_instance.after(10, lambda: self.app_instance.select_model("Local Model (Ollama)"))
+            if not self.app_instance.ollama_available:
+                self.chooseMod.configure(state="disabled")
+                self.file_btn.configure(state="disabled")
+
+    def set_choose_mod(self, mod: str):
+        if mod in self.chooseMod.cget("values"):
+            self.chooseMod.set(mod)
+        else:
+            raise ValueError("Can not modify choose mod: mod dont exist")
+
     def select_file(self, kind: bool):
         """ Starts file selection dialog. In context to two different cases 1. called  by the main page and 2. called by the details window"""
-        self.file_btn.configure(state="disabled")
-        self.chooseMod.configure(state="disabled")
-        if self.localMod is not None:
-            self.localMod.configure(state="disabled")
+        self.change_button_states("disabled")
         if not kind:
             path = filedialog.askopenfilename(filetypes=[("PDF-files", "*.pdf")],
                                               parent=self.app_instance)
@@ -71,13 +78,9 @@ class main_ui:
             self.app_instance.details_window.file_button.configure(text=file_name)
             self.app_instance.generator.set_pdf_handler(self.app_instance.selected_file)
         else:
-            self.file_btn.configure(state="normal")
-            self.chooseMod.configure(state="normal")
-            if self.localMod is not None:
-                self.localMod.configure(state="normal")
-            return
+            self.change_buttons_case_1()
 
-    def selectModel(self, installed_models):
+    def select_model(self, installed_models):
         """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
         self.destroy_local_mod()
         self.localMod = ctk.CTkOptionMenu(self.modelFrame, values=installed_models,
@@ -95,8 +98,18 @@ class main_ui:
     def destroy(self):
         self.main_frame.destroy()
 
-    def disable(self):
-        self.file_btn.configure(state="disabled")
-        self.chooseMod.configure(state="disabled")
-        if hasattr(self, "localMod"):
-            self.localMod.configure(state="disabled")
+    def change_button_states(self, state: str):
+        self.file_btn.configure(state=state)
+        self.chooseMod.configure(state=state)
+        self.addKey_button.configure(state=state)
+        if hasattr(self, "localMod") and self.localMod:
+            self.localMod.configure(state=state)
+
+    def change_buttons_case_1(self):
+        if not self.app_instance.key_valid and not self.app_instance.ollama_available:
+            self.change_button_states("normal")
+        else:
+            self.file_btn.configure(state="normal")
+            self.addKey_button.configure(state="normal")
+            if hasattr(self, "localMod") and self.localMod:
+                self.localMod.configure(state="normal")
