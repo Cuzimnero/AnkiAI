@@ -288,8 +288,13 @@ class AnkiGen:
                                        messages=[{"role": "system", "content": system_prompt},
                                                  {"role": "user", "content": user_prompt}])
                 data = json.loads(response.message.content)
-                if mode is CallType.CARD_GENERATION:
+                if mode is CallType.CARD_GENERATION or mode is CallType.CARD_IMPROVEMENT:
                     final_cards.extend(data.get("cards", []))
+                    self.progress = self.progress + 1
+                    if mode is CallType.CARD_GENERATION:
+                        self.app_instance.details_window.bar.set(self.progress / self.handler.pages)
+                    else:
+                        self.app_instance.details_window.bar.set(self.progress / self.rework_iterations)
                 else:
                     cards_to_improve = data.get("rework", [])
                     if cards_to_improve:
