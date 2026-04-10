@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 from PIL import Image
+from sympy import false
 
 if TYPE_CHECKING:
     from ui.app import App
@@ -16,7 +17,7 @@ class details_window(ctk.CTkToplevel):
         self.resizable(False, False)
         self.app_instance = app_instance
         self.title("Config")
-        self.geometry("400x670")
+        self.geometry("400x690")
         self.attributes("-topmost", True)
         self.after(200, lambda: self.iconbitmap(str(self.app_instance.icon_path)))
         self.file_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=140)
@@ -30,10 +31,16 @@ class details_window(ctk.CTkToplevel):
         file_name = os.path.basename(app_instance.selected_file)[0:20]
         if len(os.path.basename(self.app_instance.selected_file)) > 20:
             file_name = file_name + "..."
-        icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "reload_icon.png"
-        refresh_icon = ctk.CTkImage(light_image=Image.open(icon_path),
-                                    dark_image=Image.open(icon_path),
-                                    size=(30, 30))
+
+        reload_icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "reload_icon.png"
+        reload_icon = ctk.CTkImage(light_image=Image.open(reload_icon_path),
+                                   dark_image=Image.open(reload_icon_path),
+                                   size=(30, 30))
+        generate_icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "generate_icon.png"
+        generate_icon = ctk.CTkImage(light_image=Image.open(generate_icon_path),
+                                     dark_image=Image.open(generate_icon_path),
+                                     size=(40, 40))
+
         self.file_button = (
             ctk.CTkButton(self.file_frame, text=str(file_name),
                           command=lambda: self.app_instance.main_ui.select_file(False),
@@ -43,7 +50,7 @@ class details_window(ctk.CTkToplevel):
                                                 text="", hover=False,
                                                 command=self.execute_reload,
                                                 fg_color="transparent",
-                                                image=refresh_icon)
+                                                image=reload_icon)
 
         # Creates exclude frame which opens the exclude page ui and shows excluded pages
         self.exclude_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=45)
@@ -84,11 +91,10 @@ class details_window(ctk.CTkToplevel):
         )
 
         # Finish button to start the card generation process
-        self.start_btn = ctk.CTkButton(self, text="generate cards",
-                                       fg_color="green", hover_color="darkgreen",
-                                       command=self.app_instance.start_generation, border_color="#004d00",
-                                       border_width=5,
-                                       corner_radius=40, width=200, height=40)
+        self.start_btn = ctk.CTkButton(self, text="",
+                                       fg_color="transparent", hover=false,
+                                       command=self.app_instance.start_generation,
+                                       corner_radius=40, width=200, height=40, image=generate_icon)
 
     def execute_reload(self):
         """reloads document and exclude textbox"""
@@ -117,7 +123,7 @@ class details_window(ctk.CTkToplevel):
         self.language_info.pack(pady=5, side="left", padx=(40, 0))
 
         self.file_button.pack(pady=20, padx=10, side="left")
-        self.reload_file_button.pack(side="right", padx=(4, 15))
+        self.reload_file_button.pack(side="right", padx=(3, 22))
 
         self.exclude_button.pack(pady=5, side="left", padx=10)
         self.exclude_textbox.pack(pady=5, padx=10, side="right")
@@ -151,12 +157,20 @@ class details_window(ctk.CTkToplevel):
 
     def start_progress_bar(self):
         self.bar = ctk.CTkProgressBar(self, orientation="horizontal", progress_color="#5353ec",
-                                      determinate_speed=0.5, border_color="blue", fg_color="#3B8ED0")
+                                      mode="determinate", border_color="blue", fg_color="#3B8ED0")
         self.bar.pack(pady=10)
-        self.bar.start()
+        self.bar.set(0)
         self.info_label = ctk.CTkLabel(self, text="generating cards ...", font=("Arial", 14, "italic"),
                                        text_color="green")
         self.info_label.pack(pady=5)
+
+    def update_progress_bar(self, value):
+        if hasattr(self, "bar"):
+            self.bar.set(value)
+
+    def reset_progress_bar(self):
+        if hasattr(self, "bar"):
+            self.bar.set(0)
 
     def on_closing(self):
         self.app_instance.main_ui.change_buttons_case_1()

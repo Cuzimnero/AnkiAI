@@ -2,15 +2,16 @@ import html
 import os
 import random
 from pathlib import Path
+from tkinter import messagebox
 
 import genanki
 
 
 class anki_handler:
 
-    def __init__(self,deck_name:str):
+    def __init__(self, deck_name: str):
         """initialization of cards style"""
-        self.deckname=deck_name
+        self.deckname = deck_name
         style = """
             .card {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -53,12 +54,12 @@ class anki_handler:
                 margin-top: 30px;
             }
             """
-        id_m=random.randrange(1 << 30, 1 << 31)
-        id_d=random.randrange(1 << 30, 1 << 31)
-        self.model=genanki.Model(
-            id_m, "default", fields=[ {'name': 'Question'},
-            {'name': 'Answer'},{'name': 'Topic'},
-             ],
+        id_m = random.randrange(1 << 30, 1 << 31)
+        id_d = random.randrange(1 << 30, 1 << 31)
+        self.model = genanki.Model(
+            id_m, "default", fields=[{'name': 'Question'},
+                                     {'name': 'Answer'}, {'name': 'Topic'},
+                                     ],
             templates=[
                 {
                     'name': 'Card 1',
@@ -75,33 +76,32 @@ class anki_handler:
             ],
             css=style
         )
-        self.deck=genanki.Deck(id_d,deck_name)
+        self.deck = genanki.Deck(id_d, deck_name)
 
-    def clean_field(self,data):
+    def clean_field(self, data):
         if isinstance(data, list):
             return ", ".join(map(str, data))
         return str(data)
 
-    def add_fields(self,cards: list[dict]):
+    def add_fields(self, cards: list[dict]):
         """adding cards to deck"""
         for card in cards:
-            front= card.get("front") if card.get("front") is not None  else "AI Error"
-            topic=card.get("topic") if card.get("topic") is not None  else "AI Error"
-            back=card.get("back") if card.get("back") is not None  else "AI Error"
+            front = card.get("front") if card.get("front") is not None else "AI Error"
+            topic = card.get("topic") if card.get("topic") is not None else "AI Error"
+            back = card.get("back") if card.get("back") is not None else "AI Error"
             node = genanki.Note(
-            model=self.model,
-            fields=[
-                html.escape(self.clean_field(front)),
-                html.escape(self.clean_field(back)),
-                html.escape(self.clean_field(topic))
-            ]
+                model=self.model,
+                fields=[
+                    html.escape(self.clean_field(front)),
+                    html.escape(self.clean_field(back)),
+                    html.escape(self.clean_field(topic))
+                ]
             )
             self.deck.add_note(node)
 
-
-    def safe_tofile(self,path:Path):
-        genanki.Package(self.deck).write_to_file(path/f"{self.deckname.strip()}.apkg")
-        os.startfile(path/f"{self.deckname.strip()}.apkg")
-
-
-
+    def safe_tofile(self, path: Path):
+        genanki.Package(self.deck).write_to_file(path / f"{self.deckname.strip()}.apkg")
+        try:
+            os.startfile(path / f"{self.deckname.strip()}.apkg")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open deck in Anki: {e}")

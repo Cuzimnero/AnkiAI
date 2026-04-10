@@ -5,6 +5,7 @@ import math
 import os
 import pathlib
 import sys
+from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 import ollama
@@ -13,17 +14,23 @@ from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
 from ai import embedding
+from ai.model_type import ModelType, CallType
 from handler.pdf_handler import pdf_handler
+
+if TYPE_CHECKING:
+    from ui.app import App
 
 
 class AnkiGen:
-    def __init__(self, model_type: int, model: str):
+    def __init__(self, model_type: ModelType, model: str, app_instance: App):
+        self.app_instance = app_instance
         self.threshold_value = 0.8
+        self.progress = 0
         self.model = model
-        self.type = model_type
+        self.model_type = model_type
         self.logger = logging.getLogger(__name__)
         load_dotenv()
-        if self.type == 1:
+        if self.model_type == ModelType.API:
             self.workers = 30
             self.rework_size = 50
         else:
@@ -86,6 +93,10 @@ class AnkiGen:
              * 'Wall of Text': The answer is a long, unstructured paragraph.
              * 'Vague Question': The question is too broad (e.g., "What about Ethics?").
              * 'Single-Word Issue': The front is an important technical term (e.g., "Cosine Similarity"), but the back is incomplete, messy, or lacks a clear definition.
+             * 'Incomplete Answer': The back provides fewer items than requested (e.g., list of 5 instead of 6).
+             * 'Generation Cut-off': The answer ends abruptly mid-sentence or mid-structure.
+             * 'Context Leak': Mentions slide numbers, page numbers, or "previous sections".
+             * 'Formatting Glitch': Broken LaTeX ($...$) or Markdown syntax.
             - MANDATORY: For every card in the 'rework' list, you MUST provide a 'reason' field 
                 explaining exactly what is wrong (e.g., 'Wall of Text', 'No Question Mark').
            - HOW: Add them in the "rework" section.
@@ -101,8 +112,8 @@ class AnkiGen:
                 INPUT_CARDS:
                 {json.dumps(cards)}
                 """
-
-        return self.run_prompt(system_prompt, user_prompt, "Rework error", 2)
+        self.logger.info(f"Checking {len(cards)} cards")
+        return self.run_prompt(system_prompt, user_prompt, "Rework error", CallType.FILTER_AND_SPLIT)
 
     def rework_flashcard(self, flashcard: list[dict]):
         """Improves flashcards
@@ -134,16 +145,19 @@ class AnkiGen:
         """
         self.logger.info(f"Reworking {len(flashcard)} flashcards.")
         self.logger.debug(f"Flashcards to rework: {flashcard}")
-        return self.run_prompt(rework_system_prompt, rework_user_prompt, "Rework error", 1)
+        return self.run_prompt(rework_system_prompt, rework_user_prompt, "Rework error", CallType.CARD_IMPROVEMENT)
 
     def rework(self, cards: list[dict]):
         """reworks created anki cards deletes unnecessary and bad cards"""
         self.logger.info("Reworking anki cards...")
-        n = math.ceil(len(cards) / self.rework_size)
+        self.app_instance.details_window.reset_progress_bar()
+        self.progress = 0
+
+        self.rework_iterations = math.ceil(len(cards) / self.rework_size)
         rework_cards = []
         pending_tasks = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
-            for i in range(0, n):
+            for i in range(0, self.rework_iterations):
                 task = executor.submit(self.rework_part, cards[i * self.rework_size:(i + 1) * self.rework_size])
                 pending_tasks.append(task)
             for future in concurrent.futures.as_completed(pending_tasks):
@@ -164,7 +178,7 @@ class AnkiGen:
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
             for i in range(self.handler.pages):
                 page = self.handler.get_pdf_page()
-                page_cards = executor.submit(self._createCard_part, page, language)
+                page_cards = executor.submit(self._createCard_part, page, language, i)
                 cards.append(page_cards)
             for future in concurrent.futures.as_completed(cards):
                 try:
@@ -176,9 +190,9 @@ class AnkiGen:
         final_cards = self.rework(all_cards)
         return final_cards
 
-    def _createCard_part(self, input: str, language: str):
+    def _createCard_part(self, input: str, language: str, page_num: int):
+        self.logger.info(f"Creating {language} cards for page {page_num}")
         system_prompt = r"""
-        Answer in English
         You are a professional Flashcard creator. 
         Analyze the provided text and extract the core concepts into flashcards.
         Output MUST be a valid JSON object containing a list called 'cards'.
@@ -213,7 +227,7 @@ class AnkiGen:
         user_prompt = f"""
         Convert the following lecture notes into necessary high-quality Anki cards use all important things.
         LANGUAGE RULE:
-        - All content (front, back, topic) MUST be in {language}.
+        - All content (front, back, topic) MUST be in {language}. If {language} is "default", use the primary language found in the provided text. Do not translate technical terms that are commonly used in their original form.
         STRICT RULES:
         1. IGNORE all organizational data: Do not create cards about professor names, university names, course IDs, dates, slide numbers, or bibliography.
         2. FOCUS on: Definitions, technical concepts, algorithms, code logic, and factual relationships.
@@ -227,11 +241,11 @@ class AnkiGen:
         
         ---
         """
-        return self.run_prompt(system_prompt, user_prompt, "generation error", 1)
+        return self.run_prompt(system_prompt, user_prompt, "generation error", CallType.CARD_GENERATION)
 
-    def run_prompt(self, system_prompt: str, user_prompt: str, error_message: str, case: int):
+    def run_prompt(self, system_prompt: str, user_prompt: str, error_message: str, mode: CallType):
         final_cards = []
-        if self.type == 1:
+        if self.model_type is ModelType.API:
             client = OpenAI(
                 api_key=os.environ.get('DEEPSEEK_API_KEY'),
                 base_url="https://api.deepseek.com"
@@ -248,8 +262,15 @@ class AnkiGen:
                 }
                 response = client.chat.completions.create(**params)
                 data = json.loads(response.choices[0].message.content)
-                if case == 1:
+                if mode is CallType.CARD_GENERATION or mode is CallType.CARD_IMPROVEMENT:
                     final_cards.extend(data.get("cards", []))
+                    self.progress = self.progress + 1
+                    if mode is CallType.CARD_GENERATION:
+                        self.app_instance.details_window.bar.set(self.progress / self.handler.pages)
+                    else:
+                        self.app_instance.details_window.bar.set(self.progress / self.rework_iterations)
+
+
                 else:
                     well_cards = data.get("keep", [])
                     cards_to_improve = data.get("rework", [])
@@ -261,13 +282,13 @@ class AnkiGen:
                 self.logger.error(f"{error_message} {e}")
                 return []
 
-        elif self.type == 2:
+        elif self.model_type is ModelType.LOCALE:
             try:
                 response = ollama.chat(model=self.model, format='json', options={"num_ctx": 4096},
                                        messages=[{"role": "system", "content": system_prompt},
                                                  {"role": "user", "content": user_prompt}])
                 data = json.loads(response.message.content)
-                if case == 1:
+                if mode is CallType.CARD_GENERATION:
                     final_cards.extend(data.get("cards", []))
                 else:
                     cards_to_improve = data.get("rework", [])

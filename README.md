@@ -1,6 +1,7 @@
-# AnkiAI 🧠
+# OpenAnkiGen 🧠
 
-AnkiAI is a powerful tool designed to streamline your learning workflow by leveraging DeepSeek AI to generate flashcards
+OpenAnkiGen is a powerful tool designed to streamline your learning workflow by leveraging DeepSeek AI to generate
+flashcards
 for Anki.
 
 ---
@@ -73,7 +74,7 @@ flowchart TD
 ### Prerequisites
 
 * Python 3.10+
-* A DeepSeek API Key
+* A DeepSeek API Key     https://platform.deepseek.com/api_keys
 * Anki (for importing the generated cards)
 
 ### Installation

@@ -6,16 +6,16 @@ from PIL import Image
 
 class pdf_handler:
 
-    def doc_reload(self):
-        """reload doc from PDF file"""
-        self.doc.close()
-        self.doc = fitz.open(self.path)
-        self.pages = len(self.doc)
-
     def __init__(self, path: Path):
         "Initalize the handler and opens the PDF file"
         self.path = path
         self.current_page = 0
+        self.doc = fitz.open(self.path)
+        self.pages = len(self.doc)
+
+    def doc_reload(self):
+        """reload doc from PDF file"""
+        self.doc.close()
         self.doc = fitz.open(self.path)
         self.pages = len(self.doc)
 

@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from tkinterdnd2 import TkinterDnD
 
 from ai.anki_gen import AnkiGen
+from ai.model_type import ModelType
 from handler.anki_handler import anki_handler
 from ui.details_window import details_window
 from ui.exclude_window import ExcludeWindow
@@ -21,7 +22,7 @@ from ui.verify import verification
 
 # Set a unique AppUserModelID to ensure the app has its own taskbar icon on Windows
 try:
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AnkiGen")
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("OpenAnkiGen")
 except Exception:
     pass
 
@@ -70,12 +71,12 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         super().__init__()
         self.iconbitmap(str(self.icon_path))
 
-        self.title("Anki Gen")
+        self.title("OpenAnkiGen")
         self.geometry("600x500")
         ctk.set_appearance_mode("dark")
         self.key_file = base_path / ".env"
         self.selected_file = None
-        self.generator = AnkiGen(1, "")
+        self.generator = AnkiGen(ModelType.API, "", self)
 
         self.logger = logging.getLogger(__name__)
         self.logger.info("Logger started")
@@ -91,6 +92,8 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         else:
             self.verification.ask_for_key("ENTER THE KEY", False, "I dont have a key")
 
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
     def start(self):
         self.main_ui = main_ui(self)
         self.main_ui.show()
@@ -98,10 +101,11 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def select_model(self, choice):
         """ Initializes chosen Model. If Ollama is selected, it fetches installed local models and displays a selection menu."""
-        values = {"DeepSeek": 1, "Local Model (Ollama)": 2}
+        values = {"DeepSeek": ModelType.API, "Local Model (Ollama)": ModelType.LOCALE}
         model = values.get(choice)
-
-        if model == 2:
+        if not model:
+            return
+        if model == ModelType.LOCALE:
             try:
                 response = ollama.list()
                 installed_models = [m.model for m in response.models]
@@ -117,7 +121,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                     default_model = "no models installed"
                     messagebox.showwarning("Warning", "You have no models installed!")
 
-                self.generator = AnkiGen(model, default_model)
+                self.generator = AnkiGen(model, default_model, self)
                 self.ollama_available = True
             except Exception as e:
                 messagebox.showerror("Error", str(e))
@@ -133,7 +137,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
                 if self.main_ui.file_btn.winfo_exists():
                     self.main_ui.file_btn.configure(state="normal")
                     self.main_ui.destroy_local_mod()
-            self.generator = AnkiGen(model, "")
+            self.generator = AnkiGen(model, "", self)
 
     def set_model(self, model: str):
         self.generator.set_model(model)
@@ -155,13 +159,15 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def start_generation(self):
         """updates detail page for generation of cards, initialize generation"""
-        self.logger.info(f"generating starts with {self.generator.threshold_value} Threshold")
+
+        modeltype = "DeepSeek" if self.generator.model_type is ModelType.API else f"Ollama using {self.generator.model}"
+        self.logger.info(f"generating starts with {self.generator.threshold_value} Threshold with {modeltype}")
         if self.generator.threshold_value > 0.8:
             self.logger.warning(
-                f" High threshold {self.generator.threshold_value}: Strict filtering. Many cards might be skipped.")
+                f" High threshold {self.generator.threshold_value}: More cards, but higher chance of duplicates.")
         elif self.generator.threshold_value < 0.7:
             self.logger.warning(
-                f" Low threshold {self.generator.threshold_value}: More cards, but higher chance of duplicates.")
+                f" Low threshold {self.generator.threshold_value}: Strict filtering. Many cards might be skipped.")
 
         self.details_window.start_btn.configure(state="disabled", text="Generating cards...")
         self.details_window.change_button_states("disabled")
@@ -173,7 +179,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def run_gen(self):
         """generates cards"""
-        if self.generator.model == "no models installed" and self.generator.type == 2:
+        if self.generator.model == "no models installed" and self.generator.model_type == 2:
             messagebox.showerror("Error", "Please install a model first (e.g., 'ollama pull llama3')")
             return
         for page in self.pages_to_delete_sorted:
@@ -203,6 +209,10 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
             self.details_window.destroy()
         self.main_ui.change_button_states("normal")
         messagebox.showinfo("AnkiGen", "Generation successful!")
+
+    def on_closing(self):
+        self.logger.info("Application closed")
+        self.destroy()
 
 
 if __name__ == "__main__":

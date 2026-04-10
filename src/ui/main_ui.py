@@ -5,6 +5,7 @@ from tkinter import filedialog
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
+from PIL import Image
 
 if TYPE_CHECKING:
     from ui.app import App
@@ -21,7 +22,7 @@ class main_ui:
         self.addKey_button = ctk.CTkButton(self.main_frame, text=self.app_instance.text_for_add_key,
                                            fg_color="transparent",
                                            command=self.app_instance.verification.addKey, text_color="darkgreen")
-        self.title_label = ctk.CTkLabel(self.main_frame, text="ANKI GEN",
+        self.title_label = ctk.CTkLabel(self.main_frame, text="OpenAnkiGen",
                                         font=ctk.CTkFont(family="Courier", size=50, weight="bold"),
                                         text_color="#3498db")
         self.modelFrame = ctk.CTkFrame(self.main_frame, border_color="#4a4a4a", border_width=4, width=300, height=180)
@@ -29,9 +30,14 @@ class main_ui:
         self.chooseMod = ctk.CTkOptionMenu(self.modelFrame, values=["DeepSeek", "Local Model (Ollama)"],
                                            command=self.app_instance.select_model,
                                            state=self.app_instance.chooseMod_state)
-        self.file_btn = ctk.CTkButton(self.main_frame, text="Choose File",
+        file_icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "file_select_icon.png"
+        file_icon = ctk.CTkImage(light_image=Image.open(file_icon_path),
+                                 dark_image=Image.open(file_icon_path),
+                                 size=(40, 40))
+        self.file_btn = ctk.CTkButton(self.main_frame, text="",
                                       height=60, width=300, corner_radius=10,
-                                      command=lambda: self.select_file(True))
+                                      command=lambda: self.select_file(True), image=file_icon, hover=False,
+                                      fg_color="transparent")
 
     def show(self):
         self.title_label.pack(pady=40)
@@ -106,7 +112,7 @@ class main_ui:
             self.localMod.configure(state=state)
 
     def change_buttons_case_1(self):
-        if not self.app_instance.key_valid and not self.app_instance.ollama_available:
+        if not self.app_instance.key_valid or self.app_instance.ollama_available:
             self.change_button_states("normal")
         else:
             self.file_btn.configure(state="normal")

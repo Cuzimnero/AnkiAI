@@ -15,6 +15,7 @@ build/
 dist/
 *.spec
 output/
+/src/ai/model_data
 
 # Logging
 logs/
