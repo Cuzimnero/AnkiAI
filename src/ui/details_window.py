@@ -1,4 +1,6 @@
+import logging
 import os
+import sys
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -23,6 +25,9 @@ class details_window(ctk.CTkToplevel):
         self.file_frame = ctk.CTkFrame(self, border_color="#4a4a4a", border_width=4, width=380, height=140)
         self.file_label_frame = ctk.CTkFrame(self.file_frame, border_width=4, width=100,
                                              height=25)
+
+        self.logger = logging.getLogger(__name__)
+
         self.app_instance.generator.set_pdf_handler(self.app_instance.selected_file)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -32,11 +37,16 @@ class details_window(ctk.CTkToplevel):
         if len(os.path.basename(self.app_instance.selected_file)) > 20:
             file_name = file_name + "..."
 
-        reload_icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "reload_icon.png"
+        if getattr(sys, 'frozen', False):
+            reload_icon_path = self.app_instance.temp_path / "ui" / "assets" / "reload_icon.png"
+            generate_icon_path = self.app_instance.temp_path / "ui" / "assets" / "generate_icon.png"
+        else:
+            reload_icon_path = self.app_instance.temp_path / "src" / "ui" / "assets" / "reload_icon.png"
+            generate_icon_path = self.app_instance.temp_path / "src" / "ui" / "assets" / "generate_icon.png"
+
         reload_icon = ctk.CTkImage(light_image=Image.open(reload_icon_path),
                                    dark_image=Image.open(reload_icon_path),
                                    size=(30, 30))
-        generate_icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "generate_icon.png"
         generate_icon = ctk.CTkImage(light_image=Image.open(generate_icon_path),
                                      dark_image=Image.open(generate_icon_path),
                                      size=(40, 40))
@@ -173,7 +183,10 @@ class details_window(ctk.CTkToplevel):
             self.bar.set(0)
 
     def on_closing(self):
+        self.logger.info("Closing details_window...")
         self.app_instance.main_ui.change_buttons_case_1()
+        self.app_instance.generator.window_active = False
+        self.app_instance.details_window = None
         self.destroy()
 
     def change_button_states(self, state: str):

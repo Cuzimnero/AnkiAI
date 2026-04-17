@@ -44,6 +44,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         """Initializes the main application, window settings, and authentication state."""
         self.base_path = base_path
+        self.temp_path = temp_path
         self.ollama_available = True
         self.pages_to_delete_sorted = []
         self.main_ui = None
@@ -161,7 +162,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         """updates detail page for generation of cards, initialize generation"""
 
         modeltype = "DeepSeek" if self.generator.model_type is ModelType.API else f"Ollama using {self.generator.model}"
-        self.logger.info(f"generating starts with {self.generator.threshold_value} Threshold with {modeltype}")
+        self.logger.info(f"generating starts with {self.generator.threshold_value} Threshold: {modeltype}")
         if self.generator.threshold_value > 0.8:
             self.logger.warning(
                 f" High threshold {self.generator.threshold_value}: More cards, but higher chance of duplicates.")
@@ -175,6 +176,7 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         thread = threading.Thread(target=self.run_gen)
         self.details_window.start_progress_bar()
         self.generator.load_embedding_model()
+        self.generator.window_active = True
         thread.start()
 
     def run_gen(self):
@@ -192,7 +194,8 @@ class App(ctk.CTk, TkinterDnD.DnDWrapper):
         cards = self.generator.createCards(self.details_window.language_switch.get(), self.details_window.info_label)
         if not cards:
             messagebox.showerror("Error", "No cards generated.")
-            self.details_window.after(10, self.details_window.destroy)
+            if self.details_window:
+                self.details_window.after(10, self.details_window.destroy)
             self.main_ui.change_button_states("normal")
             return
 

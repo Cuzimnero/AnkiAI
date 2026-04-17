@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 class AnkiGen:
     def __init__(self, model_type: ModelType, model: str, app_instance: App):
         self.app_instance = app_instance
+        self.window_active = True
         self.threshold_value = 0.8
         self.progress = 0
         self.model = model
@@ -122,11 +123,14 @@ class AnkiGen:
         rework_system_prompt = r"""You are an Anki Refinement Specialist. Your task is to take a list of sub-optimal flashcards and transform them into high-quality, atomic learning units.
 
         ### OBJECTIVES:
-        - MANDATORY: Every 'front' must be a grammatically correct, self-contained question ending with a question mark; if the input is a statement or a noun, you MUST rephrase it into a 'How', 'What', 'Why', or 'Which' question.
-        - Fix 'Wall of Text' by using clear bullet points (max 3 per card).
-        - Clarify 'Vague Questions' by making the front specific.
-        - Expand 'Single-Word Issues' into clear definitions.
-        - Keep the language professional and concise.
+        - 'Wall of Text': The answer is a long, unstructured paragraph. -> Fix by using clear bullet points (max 3 per card).
+        - 'Vague Question': The question is too broad (e.g., "What about Ethics?"). -> Clarify by making the front specific and targeted.
+        - 'Single-Word Issue': The front is an important technical term (e.g., "Cosine Similarity"), but the back is incomplete, messy, or lacks a clear definition. -> Expand into clear, comprehensive definitions.
+        - 'Incomplete Answer': The back provides fewer items than requested (e.g., list of 5 instead of 6). -> Ensure the back matches the requested number of items.
+        - 'Generation Cut-off': The answer ends abruptly mid-sentence or mid-structure. -> Complete the sentence and restore the full logical structure.
+        - 'Context Leak': Mentions slide numbers, page numbers, or "previous sections". -> Remove all external references to make the card self-contained.
+        - 'Formatting Glitch': Broken LaTeX ($...$) or Markdown syntax. -> Repair the syntax to ensure all elements render correctly.
+        - 'MANDATORY': Every 'front' must be a grammatically correct, self-contained question ending with a question mark; if the input is a statement or a noun, you MUST rephrase it into a 'How', 'What', 'Why', or 'Which' question.
 
         ### OUTPUT FORMAT:
         You MUST return a valid JSON object with a single list called 'cards':
@@ -150,7 +154,8 @@ class AnkiGen:
     def rework(self, cards: list[dict]):
         """reworks created anki cards deletes unnecessary and bad cards"""
         self.logger.info("Reworking anki cards...")
-        self.app_instance.details_window.reset_progress_bar()
+        if hasattr(self.app_instance, "details_window"):
+            self.app_instance.details_window.reset_progress_bar()
         self.progress = 0
 
         self.rework_iterations = math.ceil(len(cards) / self.rework_size)
@@ -161,6 +166,9 @@ class AnkiGen:
                 task = executor.submit(self.rework_part, cards[i * self.rework_size:(i + 1) * self.rework_size])
                 pending_tasks.append(task)
             for future in concurrent.futures.as_completed(pending_tasks):
+                if not self.window_active:
+                    self.logger.warning("Window closed generation stopped")
+                    return
                 try:
                     rework_cards.extend(future.result())
                 except Exception as e:
@@ -181,12 +189,16 @@ class AnkiGen:
                 page_cards = executor.submit(self._createCard_part, page, language, i)
                 cards.append(page_cards)
             for future in concurrent.futures.as_completed(cards):
+                if not self.window_active:
+                    self.logger.warning("Window closed generation stopped")
+                    return
                 try:
                     page_cards = future.result()
                     all_cards.extend(page_cards)
                 except Exception as e:
                     self.logger.error(f"Error: {e}")
         info_label.configure(text="execute card rework ...")
+        self.logger.info(f"Created {len(all_cards)} cards.")
         final_cards = self.rework(all_cards)
         return final_cards
 
@@ -245,9 +257,11 @@ class AnkiGen:
 
     def run_prompt(self, system_prompt: str, user_prompt: str, error_message: str, mode: CallType):
         final_cards = []
+        if not self.window_active:
+            return
         if self.model_type is ModelType.API:
             client = OpenAI(
-                api_key=os.environ.get('DEEPSEEK_API_KEY'),
+                api_key=self.app_instance.api_key,
                 base_url="https://api.deepseek.com"
             )
 
@@ -262,7 +276,9 @@ class AnkiGen:
                 }
                 response = client.chat.completions.create(**params)
                 data = json.loads(response.choices[0].message.content)
-                if mode is CallType.CARD_GENERATION or mode is CallType.CARD_IMPROVEMENT:
+                window = getattr(self.app_instance, "details_window", None)
+                if window and (
+                        mode is CallType.CARD_GENERATION or mode is CallType.CARD_IMPROVEMENT):
                     final_cards.extend(data.get("cards", []))
                     self.progress = self.progress + 1
                     if mode is CallType.CARD_GENERATION:
@@ -288,7 +304,9 @@ class AnkiGen:
                                        messages=[{"role": "system", "content": system_prompt},
                                                  {"role": "user", "content": user_prompt}])
                 data = json.loads(response.message.content)
-                if mode is CallType.CARD_GENERATION or mode is CallType.CARD_IMPROVEMENT:
+                window = getattr(self.app_instance, "details_window", None)
+                if window and (
+                        mode is CallType.CARD_GENERATION or mode is CallType.CARD_IMPROVEMENT):
                     final_cards.extend(data.get("cards", []))
                     self.progress = self.progress + 1
                     if mode is CallType.CARD_GENERATION:

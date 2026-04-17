@@ -1,6 +1,8 @@
 import html
 import os
 import random
+import subprocess
+import sys
 from pathlib import Path
 from tkinter import messagebox
 
@@ -102,6 +104,15 @@ class anki_handler:
     def safe_tofile(self, path: Path):
         genanki.Package(self.deck).write_to_file(path / f"{self.deckname.strip()}.apkg")
         try:
-            os.startfile(path / f"{self.deckname.strip()}.apkg")
+            open_path = path / f"{self.deckname.strip()}.apkg"
+            self.open_file(open_path)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open deck in Anki: {e}")
+
+    def open_file(self, path: Path):
+        if sys.platform == "win32":
+            os.startfile(path)
+        elif sys.platform == "darwin":  # macOS
+            subprocess.run(["open", str(path)])
+        else:  # Linux
+            subprocess.run(["xdg-open", str(path)])

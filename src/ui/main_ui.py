@@ -1,7 +1,8 @@
 import logging
 import os
+import sys
 from pathlib import Path
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -30,10 +31,17 @@ class main_ui:
         self.chooseMod = ctk.CTkOptionMenu(self.modelFrame, values=["DeepSeek", "Local Model (Ollama)"],
                                            command=self.app_instance.select_model,
                                            state=self.app_instance.chooseMod_state)
-        file_icon_path = self.app_instance.base_path / "src" / "ui" / "assets" / "file_select_icon.png"
-        file_icon = ctk.CTkImage(light_image=Image.open(file_icon_path),
-                                 dark_image=Image.open(file_icon_path),
-                                 size=(40, 40))
+        if getattr(sys, 'frozen', False):
+            file_icon_path = self.app_instance.temp_path / "ui" / "assets" / "file_select_icon.png"
+        else:
+            file_icon_path = self.app_instance.temp_path / "src" / "ui" / "assets" / "file_select_icon.png"
+        try:
+            file_icon = ctk.CTkImage(light_image=Image.open(file_icon_path),
+                                     dark_image=Image.open(file_icon_path),
+                                     size=(40, 40))
+        except FileNotFoundError:
+            messagebox.showerror("File Not Found", "file_icon_path doesn't exist")
+
         self.file_btn = ctk.CTkButton(self.main_frame, text="",
                                       height=60, width=300, corner_radius=10,
                                       command=lambda: self.select_file(True), image=file_icon, hover=False,
