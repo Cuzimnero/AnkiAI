@@ -96,8 +96,9 @@ class AnkiGen:
              * 'Single-Word Issue': The front is an important technical term (e.g., "Cosine Similarity"), but the back is incomplete, messy, or lacks a clear definition.
              * 'Incomplete Answer': The back provides fewer items than requested (e.g., list of 5 instead of 6).
              * 'Generation Cut-off': The answer ends abruptly mid-sentence or mid-structure.
-             * 'Context Leak': Mentions slide numbers, page numbers, or "previous sections".
+             * 'Context Leak': Mentions slide numbers,not given examples, page numbers, or "previous sections".
              * 'Formatting Glitch': Broken LaTeX ($...$) or Markdown syntax.
+             * 'Answer Mismatch': The back of the card does not provide a direct or accurate answer to the question asked
             - MANDATORY: For every card in the 'rework' list, you MUST provide a 'reason' field 
                 explaining exactly what is wrong (e.g., 'Wall of Text', 'No Question Mark').
            - HOW: Add them in the "rework" section.
@@ -128,8 +129,9 @@ class AnkiGen:
         - 'Single-Word Issue': The front is an important technical term (e.g., "Cosine Similarity"), but the back is incomplete, messy, or lacks a clear definition. -> Expand into clear, comprehensive definitions.
         - 'Incomplete Answer': The back provides fewer items than requested (e.g., list of 5 instead of 6). -> Ensure the back matches the requested number of items.
         - 'Generation Cut-off': The answer ends abruptly mid-sentence or mid-structure. -> Complete the sentence and restore the full logical structure.
-        - 'Context Leak': Mentions slide numbers, page numbers, or "previous sections". -> Remove all external references to make the card self-contained.
+        - 'Context Leak': Mentions slide numbers, page numbers, examples or "previous sections". -> Remove all external references to make the card self-contained.
         - 'Formatting Glitch': Broken LaTeX ($...$) or Markdown syntax. -> Repair the syntax to ensure all elements render correctly.
+        - 'Answer Mismatch': Problem: The back of the card does not provide a direct, precise, or complete answer to the specific question asked on the front. Revision Approach: Rewrite the answer so it addresses the front exactly. Eliminate irrelevant information and ensure the response leads directly to the core of the question.
         - 'MANDATORY': Every 'front' must be a grammatically correct, self-contained question ending with a question mark; if the input is a statement or a noun, you MUST rephrase it into a 'How', 'What', 'Why', or 'Which' question.
 
         ### OUTPUT FORMAT:
@@ -234,6 +236,7 @@ class AnkiGen:
         - If the input text is just an organizational slide or lacks technical substance, return {"cards": []}.
         Keep the answers concise and focused on one concept per card. Also add a field with 'topic' this should store 
         the core topic which the card is about only 1-4 words. 
+        'Example Embedding': If you refer to a specific calculation or scenario from the text, you MUST include the relevant data points (numbers, addresses, conditions) within the 'Front' of the card.
         """
 
         user_prompt = f"""

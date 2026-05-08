@@ -116,3 +116,6 @@ class anki_handler:
             subprocess.run(["open", str(path)])
         else:  # Linux
             subprocess.run(["xdg-open", str(path)])
+
+    def fix_format(self, cards: list[dict]):
+        return
